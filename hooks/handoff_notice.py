@@ -58,13 +58,13 @@ def notice(event, home):
 
 
 def main():
+    if "--print-dir" in sys.argv:
+        print(handoff_dir(os.getcwd(), pathlib.Path.home()))
+        return
     try:
         event = json.load(sys.stdin)
     except ValueError:
         event = {}
-    if "--print-dir" in sys.argv:
-        print(handoff_dir(event.get("cwd") or os.getcwd(), pathlib.Path.home()))
-        return
     context = notice(event, pathlib.Path.home())
     if context:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": context}}))
