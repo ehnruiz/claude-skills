@@ -1,0 +1,17 @@
+{
+  "name": "ehnruiz",
+  "owner": {
+    "name": "Emmanuel Ruiz",
+    "url": "https://github.com/ehnruiz"
+  },
+  "metadata": {
+    "description": "Emmanuel Ruiz's Claude Code skills and subagents."
+  },
+  "plugins": [
+    {
+      "name": "agent-workflow",
+      "source": "./",
+      "description": "Supervisor routing, session handoffs, readable tickets and no-AI-attribution, as skills and subagents."
+    }
+  ]
+}
