@@ -18,7 +18,7 @@ The main session is the **supervisor**. It decides, verifies and answers. Everyt
 | Review a diff against the ask and the repo's standards | `reviewer` | Opus |
 | Clarifying the ask, severity, security, anything irreversible, the final answer | supervisor | session model |
 
-The agent definitions live in this repository's `agents/` folder. Adjust the table to the agents you actually have.
+The agent definitions live in this repository's `agents/` folder. Adjust the table to the agents you actually have. The supervisor routes and stitches results together; each agent does one job. Keep it that way, so no two agents compete for the same ticket.
 
 ## When to do it yourself
 

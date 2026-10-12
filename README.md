@@ -1,10 +1,11 @@
 # claude-skills
 
-Skills and subagents for [Claude Code](https://docs.claude.com/en/docs/claude-code) that I use every day. They do four jobs:
+Skills and subagents for [Claude Code](https://docs.claude.com/en/docs/claude-code) that I use every day. They do five jobs:
 
 - **Spend less on each task.** The main session plans and checks the work. Cheaper models do the searching, writing and building.
 - **Pick up where you left off.** A session writes a handoff note, and the next session continues from it without re-asking.
 - **Write tickets people read.** A short description for the product owner, with the engineering detail in the first comment.
+- **Keep a growing skill library predictable.** Find skills that compete for the same request before they misfire.
 - **Publish under your own name.** No "generated with" footers or AI co-author lines in your commits and PRs.
 
 ## Install
@@ -36,6 +37,7 @@ cp claude-skills/agents/*.md ~/.claude/agents/
 | [`ticket-write`](skills/ticket-write/SKILL.md) | Drafts bugs, tasks, stories, spikes and epics with word budgets, then checks the draft with a lint script before filing. Works with Jira, Linear or GitHub Issues. |
 | [`ticket-trim`](skills/ticket-trim/SKILL.md) | Shortens an existing ticket that is too long. It saves the original text in a comment first. |
 | [`ticket-digest`](skills/ticket-digest/SKILL.md) | Turns today's new tickets into one message to paste into chat, one line per ticket. |
+| [`skill-collision-audit`](skills/skill-collision-audit/SKILL.md) | Finds skills whose descriptions compete for the same request, then fixes the descriptions so each request goes to exactly one skill. A script shortlists the overlapping pairs and same-name duplicates; Claude judges each pair against realistic requests. |
 
 ### Ticket budgets
 
@@ -59,6 +61,20 @@ ok    code identifiers: 0 (limit 3)
 ok    acceptance criteria: 2 (limit 2-5)
 ```
 
+### Collision audit
+
+`skills/skill-collision-audit/scripts/find_collisions.py` scores every pair of skill descriptions by the distinctive words they share:
+
+```
+$ python3 find_collisions.py ~/.claude/skills .claude/skills
+55 skills, 13 overlapping pairs, 0 duplicate names
+
+0.74  built-in-browser  <->  chrome-browser
+      shared: browser, tool, mcp, chrome, own, before
+```
+
+A high score is a reason to look, not a verdict: that pair already says in both descriptions which browser each one is for. The skill has Claude test each pair with realistic requests and fix only the real collisions.
+
 ## Subagents
 
 Each subagent's model is set in its file. The `supervisor` skill sends work to them.
@@ -78,7 +94,7 @@ python3 -m unittest discover -s tests -v
 claude plugin validate .
 ```
 
-The tests check the lint script, each skill's and subagent's frontmatter, links inside the skills, and that this README lists every skill and subagent.
+The tests check the lint script, the collision script, each skill's and subagent's frontmatter, links inside the skills, and that this README lists every skill and subagent.
 
 ## Credits
 
