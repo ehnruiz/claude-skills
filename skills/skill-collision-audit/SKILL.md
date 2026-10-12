@@ -16,7 +16,7 @@ Claude chooses a skill by reading descriptions. Two descriptions that answer the
    python3 scripts/find_collisions.py ~/.claude/skills .claude/skills
    ```
 
-   The path is relative to this skill's folder. `--threshold` (default 0.25) widens or narrows the list; `--json` gives machine-readable output. It also lists **duplicate names**: the same skill installed twice, where only one copy loads. Skills marked `disable-model-invocation: true` only run when typed by name, so they are never paired.
+   The path is relative to this skill's folder. `--threshold` (default 0.25) widens or narrows the list; `--json` gives machine-readable output. A one-line description shares few words with anything, so it can score under the threshold and still collide: run a second pass at `--threshold 0.12` and look at the pairs where either description is short. The script also lists **duplicate names**: the same skill installed twice, where only one copy loads. Plugin skills are namespaced (`plugin:skill`), so a duplicate between two plugins usually is not one. Skills marked `disable-model-invocation: true` only run when typed by name, so they are never paired.
 3. **Judge each pair.** A high score is a reason to look, not a verdict. For each pair, read both descriptions in full and write three realistic requests a user would type for either one. For each request, decide which skill should fire.
    - **Collision:** at least one request could reasonably fire either skill, and neither description tells Claude which to prefer.
    - **Resolved:** the descriptions already draw the line, typically with a "not for …, use the X skill" clause, or by triggering on different nouns.
