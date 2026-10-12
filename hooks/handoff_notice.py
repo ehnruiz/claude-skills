@@ -19,12 +19,15 @@ PREVIEW_CHARS = 1500
 def project_folder(cwd):
     """The main checkout's folder name, or the working directory's when it is not a git repository."""
     try:
-        common = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        output = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
             cwd=cwd, capture_output=True, text=True, timeout=5, check=True,
-        ).stdout.strip()
-        return pathlib.Path(common).parent.name
-    except (OSError, subprocess.SubprocessError):
+        ).stdout
+        main = output.partition("\n")[0].partition(" ")[2]
+        if not main:
+            raise ValueError("git returned no main worktree")
+        return pathlib.Path(main).name
+    except (OSError, subprocess.SubprocessError, ValueError):
         return pathlib.Path(cwd).name
 
 
