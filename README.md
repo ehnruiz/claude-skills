@@ -67,9 +67,9 @@ ok    acceptance criteria: 2 (limit 2-5)
 
 ```
 $ python3 find_collisions.py ~/.claude/skills .claude/skills
-55 skills, 13 overlapping pairs, 0 duplicate names
+55 skills, 14 overlapping pairs, 0 duplicate names
 
-0.74  built-in-browser  <->  chrome-browser
+0.73  built-in-browser  <->  chrome-browser
       shared: browser, tool, mcp, chrome, own, before
 ```
 
