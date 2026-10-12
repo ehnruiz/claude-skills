@@ -87,6 +87,29 @@ Each subagent's model is set in its file. The `supervisor` skill sends work to t
 | [`tester`](agents/tester.md) | Sonnet | Writes and runs tests, and touches only tests and fixtures. |
 | [`reviewer`](agents/reviewer.md) | Opus | Reviews a diff against the ticket and the repository's standards, giving a failure scenario for each finding. |
 
+## Hooks
+
+| Hook | Event | What it does |
+| --- | --- | --- |
+| [`handoff_notice.py`](hooks/handoff_notice.py) | SessionStart | Shows the opening of the project's newest handoff note when a session starts, and names `pick-up`. Quiet when there is no note, or when the repository has its own `handoff` skill. |
+
+The plugin registers it through [`hooks/hooks.json`](hooks/hooks.json). With a copy install, add it to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|clear|compact",
+        "hooks": [{ "type": "command", "command": "python3 /path/to/claude-skills/hooks/handoff_notice.py", "timeout": 10 }] }
+    ]
+  }
+}
+```
+
+## Your own copy wins
+
+A skill in `~/.claude/skills/` outranks a project's `.claude/skills/` skill with the same name. So `supervisor`, `handoff` and `pick-up` each check first for a project copy and follow that one when it exists. Subagents need no such step: a project's `.claude/agents/` file already outranks the one installed here.
+
 ## Development
 
 ```bash
@@ -94,7 +117,7 @@ python3 -m unittest discover -s tests -v
 claude plugin validate .
 ```
 
-The tests check the lint script, the collision script, each skill's and subagent's frontmatter, links inside the skills, and that this README lists every skill and subagent.
+The tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills, and that this README lists every skill and subagent.
 
 ## Credits
 

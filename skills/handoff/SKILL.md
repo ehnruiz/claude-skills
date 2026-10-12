@@ -9,9 +9,11 @@ disable-model-invocation: true
 
 Write a note that lets a session with no memory of this one carry on without asking what happened.
 
+**Project copy first.** If the repository has its own `.claude/skills/handoff/SKILL.md`, read it and follow it instead of this file. A skill installed for all your projects outranks a project skill with the same name, so without this step a repository's own version of this skill would never run.
+
 ## Where
 
-Save it to `~/.claude/handoffs/<project-folder-name>/<YYYY-MM-DD>-<topic>.md`, the topic in two to four kebab-case words. Keep it outside the repository so it never lands in a commit, and outside any session scratch directory, which the next session cannot see. Tell the user the path.
+Save it to `~/.claude/handoffs/<project-folder-name>/<YYYY-MM-DD>-<topic>.md`, the topic in two to four kebab-case words. The folder name is the main checkout's, so a session in a git worktree saves beside the others; `python3 hooks/handoff_notice.py --print-dir` from this repository's install prints it. Keep it outside the repository so it never lands in a commit, and outside any session scratch directory, which the next session cannot see. Tell the user the path.
 
 ## What goes in it, in this order
 
