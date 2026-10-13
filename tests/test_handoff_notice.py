@@ -81,6 +81,27 @@ class HandoffNoticeTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(checkout), "worktree", "add", "-q", str(tree)], check=True, env=env)
         self.assertEqual(hook.main_checkout(str(tree)), checkout)
 
+    def test_a_global_core_worktree_cannot_redirect_the_folder(self):
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-q", "--allow-empty", "-m", "init"], check=True, env=env)
+        tree = self.tmp / "shop-feature"
+        subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "-q", str(tree)], check=True, env=env)
+        config = self.tmp / "gitconfig"
+        config.write_text("[core]\n\tworktree = /nowhere\n")
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(config)}):
+            self.assertEqual(hook.main_checkout(str(tree)), self.repo.resolve())
+
+    def test_a_separate_git_dir_and_its_worktree_share_a_folder(self):
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        main = self.tmp / "sep-main"
+        subprocess.run(["git", "init", "-q", "--separate-git-dir", str(self.tmp / "sep.git"), str(main)], check=True)
+        subprocess.run(["git", "-C", str(main), "commit", "-q", "--allow-empty", "-m", "init"], check=True, env=env)
+        tree = self.tmp / "sep-tree"
+        subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(tree)], check=True, env=env)
+        self.assertEqual(hook.main_checkout(str(tree)), hook.main_checkout(str(main)))
+
     def test_outside_git_uses_the_folder_itself(self):
         plain = self.tmp / "notes-folder"
         plain.mkdir()
