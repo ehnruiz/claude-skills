@@ -20,7 +20,7 @@ class HandoffNoticeTest(unittest.TestCase):
         self.repo = self.tmp / "shop"
         self.repo.mkdir()
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
-        self.notes = self.home / ".claude" / "handoffs" / "shop"
+        self.notes = self.home / ".claude" / "projects" / hook.project_slug(self.repo.resolve()) / "handoffs"
         env = mock.patch.dict(os.environ, {}, clear=False)
         env.start()
         os.environ.pop("CLAUDE_PROJECT_DIR", None)
@@ -67,11 +67,16 @@ class HandoffNoticeTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "-q", str(tree)], check=True)
         self.assertEqual(hook.handoff_dir(str(tree), self.home), self.notes)
 
-    def test_outside_git_uses_the_folder_name(self):
+    def test_outside_git_uses_the_folder_itself(self):
         plain = self.tmp / "notes-folder"
         plain.mkdir()
-        self.assertEqual(hook.handoff_dir(str(plain), self.home).name, "notes-folder")
+        folder = hook.handoff_dir(str(plain), self.home)
+        self.assertEqual(folder.name, "handoffs")
+        self.assertEqual(folder.parent.name, hook.project_slug(plain.resolve()))
 
+    def test_slug_matches_claude_codes_project_folder_name(self):
+        self.assertEqual(hook.project_slug(pathlib.Path("/Users/me/projects/my.repo_v2")),
+                         "-Users-me-projects-my-repo-v2")
 
 if __name__ == "__main__":
     unittest.main()
