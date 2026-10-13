@@ -2,6 +2,7 @@ import contextlib
 import importlib.util
 import io
 import pathlib
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -11,7 +12,19 @@ spec = importlib.util.spec_from_file_location(
 find_collisions = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(find_collisions)
 
-LIBRARY = ROOT / "tests/fixtures/library"
+# The fixture library is written to a temporary folder, not committed, so a skill installer that
+# scans the repository for SKILL.md never mistakes a fixture for a real skill.
+FIXTURES = {
+    'a/content-plan/SKILL.md': '---\nname: content-plan\ndescription: Plan social media posts and content themes for the month. Use when the user asks what to post, wants a content calendar, or needs post ideas for social media.\n---\n',
+    'a/invoice-chase/SKILL.md': '---\nname: invoice-chase\ndescription: Find overdue invoices in the accounting system and draft polite payment reminders for each client. Use when someone mentions unpaid bills, late payers or accounts receivable.\n---\n',
+    'a/social-calendar/SKILL.md': '---\nname: social-calendar\ndescription: >\n  Build a monthly social media content calendar with post ideas.\n  Use when the user asks what to post this month on social media.\n---\n',
+    'b/content-plan/SKILL.md': '---\nname: content-plan\ndescription: An older copy of the content planning skill, installed in a second place.\n---\n',
+}
+_TMP = tempfile.TemporaryDirectory()
+LIBRARY = pathlib.Path(_TMP.name) / "library"
+for _rel, _text in FIXTURES.items():
+    (LIBRARY / _rel).parent.mkdir(parents=True, exist_ok=True)
+    (LIBRARY / _rel).write_text(_text, encoding="utf-8")
 
 
 def run(*args):
