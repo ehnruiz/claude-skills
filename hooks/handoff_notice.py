@@ -20,7 +20,9 @@ PREVIEW_CHARS = 1500
 
 
 def git(cwd, *args):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=True).stdout.strip()
+    """Git's output without the newline it ends with; a path may itself end in a space, so nothing else goes."""
+    out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=True).stdout
+    return out.removesuffix("\n")
 
 
 def main_checkout(cwd):

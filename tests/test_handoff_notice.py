@@ -81,6 +81,17 @@ class HandoffNoticeTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(checkout), "worktree", "add", "-q", str(tree)], check=True, env=env)
         self.assertEqual(hook.main_checkout(str(tree)), checkout)
 
+    def test_a_trailing_space_in_a_submodule_path_is_kept(self):
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        lib = self.tmp / "lib"
+        subprocess.run(["git", "init", "-q", str(lib)], check=True)
+        subprocess.run(["git", "-C", str(lib), "commit", "-q", "--allow-empty", "-m", "init"], check=True, env=env)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "protocol.file.allow=always", "submodule", "add", "-q",
+                        str(lib), "vendor/lib "], check=True, env=env)
+        checkout = (self.repo / "vendor" / "lib ").resolve()
+        self.assertEqual(hook.main_checkout(str(checkout)), checkout)
+
     def test_a_global_core_worktree_cannot_redirect_the_folder(self):
         env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
