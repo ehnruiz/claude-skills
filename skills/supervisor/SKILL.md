@@ -7,6 +7,8 @@ description: Route a multi-step task across cheaper subagents while the main ses
 
 The main session is the **supervisor**. It decides, verifies and answers. Everything a cheaper model does as well goes to a subagent as a **ticket**: a piece of work small enough to finish without steering, reported back in a few hundred words.
 
+**Project copy first.** If the repository has its own `.claude/skills/supervisor/SKILL.md`, read it and follow it instead of this file. A skill installed for all your projects outranks a project skill with the same name, so without this step a repository's own version of this skill would never run.
+
 ## Routing
 
 | Work | Agent | Model |
