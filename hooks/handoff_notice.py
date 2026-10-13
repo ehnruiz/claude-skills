@@ -19,21 +19,31 @@ import sys
 PREVIEW_CHARS = 1500
 
 
+def git(cwd, *args):
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=True).stdout.strip()
+
+
 def main_checkout(cwd):
     """The main checkout's real path, or the working directory's when it is not a git repository.
 
-    The first entry of `git worktree list` is the main checkout, which also holds inside a submodule,
-    where `--git-common-dir` points into the superproject's `.git/modules/`.
+    In the main checkout it is the top level. In a linked worktree it is the shared git directory's
+    `core.worktree` when set, as for a submodule, whose git directory lives in the superproject's
+    `.git/modules/`; otherwise the shared git directory's parent. Neither the parent of
+    `--git-common-dir` nor the first entry of `git worktree list` is right inside a submodule: both
+    name the `.git/modules/` folder.
     """
     try:
-        output = subprocess.run(
-            ["git", "worktree", "list", "--porcelain"],
-            cwd=cwd, capture_output=True, text=True, timeout=5, check=True,
-        ).stdout
-        main = output.partition("\n")[0].partition(" ")[2]
-        if not main:
-            raise ValueError("git returned no main worktree")
-        return pathlib.Path(main).resolve()
+        top, git_dir, common = git(
+            cwd, "rev-parse", "--path-format=absolute", "--show-toplevel", "--absolute-git-dir", "--git-common-dir"
+        ).split("\n")
+        if git_dir == common:
+            return pathlib.Path(top).resolve()
+        try:
+            worktree = git(cwd, "--git-dir", common, "config", "core.worktree")
+        except subprocess.CalledProcessError:
+            worktree = ""  # unset: an ordinary repository, whose main checkout holds the git directory
+        main = pathlib.Path(common, worktree) if worktree else pathlib.Path(common).parent
+        return main.resolve()
     except (OSError, subprocess.SubprocessError, ValueError):
         return pathlib.Path(cwd).resolve()
 

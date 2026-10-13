@@ -67,6 +67,20 @@ class HandoffNoticeTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "-q", str(tree)], check=True)
         self.assertEqual(hook.handoff_dir(str(tree), self.home), self.notes)
 
+    def test_a_submodule_keys_on_its_own_checkout(self):
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        lib = self.tmp / "lib"
+        subprocess.run(["git", "init", "-q", str(lib)], check=True)
+        subprocess.run(["git", "-C", str(lib), "commit", "-q", "--allow-empty", "-m", "init"], check=True, env=env)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "protocol.file.allow=always", "submodule", "add", "-q",
+                        str(lib), "vendor/lib"], check=True, env=env)
+        checkout = (self.repo / "vendor" / "lib").resolve()
+        self.assertEqual(hook.main_checkout(str(checkout)), checkout)
+        tree = self.tmp / "lib-feature"
+        subprocess.run(["git", "-C", str(checkout), "worktree", "add", "-q", str(tree)], check=True, env=env)
+        self.assertEqual(hook.main_checkout(str(tree)), checkout)
+
     def test_outside_git_uses_the_folder_itself(self):
         plain = self.tmp / "notes-folder"
         plain.mkdir()
