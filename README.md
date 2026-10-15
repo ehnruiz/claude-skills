@@ -36,8 +36,9 @@ cp claude-skills/agents/*.md ~/.claude/agents/
 | [`tdd`](skills/tdd/SKILL.md) | Test-driven development, one vertical slice at a time: what a good test is, where tests go, when to mock, and the rules of the red-green loop. |
 | [`diagnosing-bugs`](skills/diagnosing-bugs/SKILL.md) | For hard bugs, flaky tests and slowdowns: build a command that goes red on the bug first, then reproduce, rank hypotheses, instrument, fix behind a test and clean up. |
 | [`regression-proof`](skills/regression-proof/SKILL.md) | Judges lint, type checks, tests and pushes by their exit codes, and proves in a scratch worktree that a fix's new test fails without the fix. |
+| [`explain-the-number`](skills/explain-the-number/SKILL.md) | Before a measured number is reported or credited to a change, checks the comparison is like-for-like: same population, same measures, same setup, nothing else changed. What did not run is reported as "did not run". |
 | [`research`](skills/research/SKILL.md) | Answers a question from primary sources in one cited Markdown note, written in the background by `researcher`. |
-| [`writing-for-agents`](skills/writing-for-agents/SKILL.md) | How to write skills, `AGENTS.md` and `CLAUDE.md` so an agent follows them the same way every run. |
+| [`writing-for-agents`](skills/writing-for-agents/SKILL.md) | How to write skills, `AGENTS.md` and `CLAUDE.md` so an agent follows them the same way every run, and how to prove a new rule red then green in fresh subagents before it ships. |
 | [`handoff`](skills/handoff/SKILL.md) | Writes a handoff note at the end of a session: the goal, what is done and how it was verified, decisions, open questions and next steps. You invoke it yourself. |
 | [`pick-up`](skills/pick-up/SKILL.md) | Loads the newest handoff, checks the repository for anything that changed since, and starts on the next step. |
 | [`no-ai-attribution`](skills/no-ai-attribution/SKILL.md) | Removes AI credit lines and AI co-author trailers from commits, PRs, issues, comments and tickets before they are posted. |
@@ -46,7 +47,7 @@ cp claude-skills/agents/*.md ~/.claude/agents/
 | [`ticket-trim`](skills/ticket-trim/SKILL.md) | Shortens an existing ticket that is too long. It saves the original text in a comment first. |
 | [`ticket-digest`](skills/ticket-digest/SKILL.md) | Turns today's new tickets into one message to paste into chat, one line per ticket. |
 | [`llm-integration`](skills/llm-integration/SKILL.md) | A checklist for code that calls a language model or exposes tools to one: prompts as versioned source, model output as untrusted input, cost caps, and how an MCP server should stop. |
-| [`plain-writing`](skills/plain-writing/SKILL.md) | Drafts messages, emails, PR descriptions and tickets in plain language under your name, and cuts the patterns that read as machine-written. |
+| [`plain-writing`](skills/plain-writing/SKILL.md) | Drafts messages, emails, PR descriptions and comments in plain language under your name, and cuts the patterns that read as machine-written. Tickets go to `ticket-write` and `ticket-trim`. |
 | [`epic-review`](skills/epic-review/SKILL.md) | Checks a Jira epic item by item against its In Scope list, flags what the review meeting must decide, and drafts the scope of the next epic. |
 | [`confluence-jira-links`](skills/confluence-jira-links/SKILL.md) | Shows each ticket on a Confluence page as a smart link and makes sure each ticket links back to the page once, not twice. |
 | [`leader-1-1-prep`](skills/leader-1-1-prep/SKILL.md) | Builds a one-screen brief for a 1:1 with a skip-level: what carried forward, at most two asks, people, strategy, and one question about your growth. |
@@ -155,6 +156,8 @@ The Node tests cover the four opt-in hooks. The Python tests check the lint scri
 ## Credits
 
 The handoff skill grew out of the handoff idea in [Matt Pocock's skills](https://github.com/mattpocock/skills). `grilling`, `tdd`, `diagnosing-bugs`, `research` and `writing-for-agents` are adapted from the same repository under the MIT License; each keeps the notice in its own `LICENSE.md`.
+
+`explain-the-number` follows the principle of the same name in Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT); it keeps the notice in its own `LICENSE.md`. `writing-for-agents/PRESSURE-TESTS.md` rewrites the method of Jesse Vincent's `testing-skills-with-subagents` in [obra/clank](https://github.com/obra/clank); no text is copied, as that repository ships no license file.
 
 ## License
 

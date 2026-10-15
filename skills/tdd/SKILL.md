@@ -68,4 +68,13 @@ proves it did not add one.
   never by reading the output for the word "pass", and never through a pipe.
 - **A fix's test must prove it.** For a bug fix, the new test has to fail on the code without
   the fix. The `regression-proof` skill shows how to check that in a scratch worktree.
+- **Wait on the condition, not the clock.** A test that needs something to happen polls for it
+  with an explicit timeout (`vi.waitFor`, Playwright's `expect.poll`, a retry-until helper) and
+  returns as soon as it does. A fixed sleep guesses how long it takes, and the guess loses on a
+  loaded machine or in a full suite. A sleep stays only to show that something did not happen,
+  with a comment naming the event it waits out.
+- **Fake the clock for time-based code.** Debounce, quiet windows and retry delays run under the
+  test framework's fake timers, and the test advances the clock. Fake only the timers the code
+  uses: faking everything can freeze an HTTP client's keep-alive. A speed or size claim is
+  asserted as a count (calls, comparisons, bytes), not a duration.
 - **Refactoring is not part of the loop.** It belongs to review, not to the red → green cycle.
