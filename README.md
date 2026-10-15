@@ -100,8 +100,12 @@ Each subagent's model is set in its file. The `supervisor` skill sends work to t
 | Hook | Event | What it does |
 | --- | --- | --- |
 | [`handoff_notice.py`](hooks/handoff_notice.py) | SessionStart | Shows the opening of the project's newest handoff note when a session starts, and names `pick-up`. Quiet when there is no note, or when the repository has its own `handoff` skill. |
+| [`config-protection.mjs`](hooks/README.md) | PreToolUse | Opt-in. Blocks edits to an existing lint, type, test, build or CI configuration file. |
+| [`commit-secrets.mjs`](hooks/README.md) | PreToolUse | Opt-in. Scans what a `git commit` would take and denies or asks when it finds a secret. |
+| [`edited-files.mjs`](hooks/README.md) | PostToolUse | Opt-in. Records the files a session edits, for `stop-check.mjs`. |
+| [`stop-check.mjs`](hooks/README.md) | Stop | Opt-in. Runs eslint and the type check on the edited files before a response ends. |
 
-The plugin registers it through [`hooks/hooks.json`](hooks/hooks.json). With a copy install, add it to `~/.claude/settings.json`:
+The plugin registers `handoff_notice.py` through [`hooks/hooks.json`](hooks/hooks.json). The four opt-in hooks are not registered: [`hooks/README.md`](hooks/README.md) has the settings snippet for them. With a copy install, add `handoff_notice.py` to `~/.claude/settings.json`:
 
 ```json
 {
@@ -122,10 +126,11 @@ A skill in `~/.claude/skills/` outranks a project's `.claude/skills/` skill with
 
 ```bash
 python3 -m unittest discover -s tests -v
+node --test tests/hooks/
 claude plugin validate .
 ```
 
-The tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills, and that this README lists every skill and subagent.
+The Node tests cover the four opt-in hooks. The Python tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills, and that this README lists every skill and subagent.
 
 ## Credits
 
