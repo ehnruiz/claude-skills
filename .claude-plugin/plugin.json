@@ -1,10 +1,10 @@
 {
   "name": "agent-workflow",
-  "description": "Skills and subagents for Claude Code: route work across model tiers, build and debug test-first, hand work between sessions, write tickets people can read, and keep AI credit lines out of what you publish.",
-  "version": "1.3.0",
+  "description": "Skills and subagents for Claude Code: route work across model tiers, build and debug test-first, prepare reviews and 1:1s, hand work between sessions, write tickets people can read, and keep AI credit lines out of what you publish.",
+  "version": "1.4.0",
   "author": { "name": "Emmanuel Ruiz", "url": "https://github.com/ehnruiz" },
   "homepage": "https://github.com/ehnruiz/claude-skills",
   "repository": "https://github.com/ehnruiz/claude-skills",
   "license": "MIT",
-  "keywords": ["skills", "subagents", "workflow", "tickets", "jira", "handoff", "tdd", "debugging", "research"]
+  "keywords": ["skills", "subagents", "workflow", "tickets", "jira", "handoff", "tdd", "debugging", "research", "confluence", "writing"]
 }
