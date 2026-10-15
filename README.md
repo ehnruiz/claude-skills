@@ -1,8 +1,9 @@
 # claude-skills
 
-Skills and subagents for [Claude Code](https://docs.claude.com/en/docs/claude-code) that I use every day. They do five jobs:
+Skills and subagents for [Claude Code](https://docs.claude.com/en/docs/claude-code) that I use every day. They do six jobs:
 
 - **Spend less on each task.** The main session plans and checks the work. Cheaper models do the searching, writing and building.
+- **Build, debug and prove changes.** Test first, build a failing loop before guessing at a bug, and judge every check by its exit code.
 - **Pick up where you left off.** A session writes a handoff note, and the next session continues from it without re-asking.
 - **Write tickets people read.** A short description for the product owner, with the engineering detail in the first comment.
 - **Keep a growing skill library predictable.** Find skills that compete for the same request before they misfire.
@@ -30,6 +31,12 @@ cp claude-skills/agents/*.md ~/.claude/agents/
 | Skill | What it does |
 | --- | --- |
 | [`supervisor`](skills/supervisor/SKILL.md) | Splits a multi-step task into tickets for cheaper subagents, in a fixed order: clarify, scout, plan, build, verify, review, ship. A subagent that fails twice moves up one model tier. |
+| [`grilling`](skills/grilling/SKILL.md) | Questions you about a plan in rounds until every decision is settled. It looks up facts itself and asks you only for decisions. |
+| [`tdd`](skills/tdd/SKILL.md) | Test-driven development, one vertical slice at a time: what a good test is, where tests go, when to mock, and the rules of the red-green loop. |
+| [`diagnosing-bugs`](skills/diagnosing-bugs/SKILL.md) | For hard bugs, flaky tests and slowdowns: build a command that goes red on the bug first, then reproduce, rank hypotheses, instrument, fix behind a test and clean up. |
+| [`regression-proof`](skills/regression-proof/SKILL.md) | Judges lint, type checks, tests and pushes by their exit codes, and proves in a scratch worktree that a fix's new test fails without the fix. |
+| [`research`](skills/research/SKILL.md) | Answers a question from primary sources in one cited Markdown note, written in the background by `researcher`. |
+| [`writing-for-agents`](skills/writing-for-agents/SKILL.md) | How to write skills, `AGENTS.md` and `CLAUDE.md` so an agent follows them the same way every run. |
 | [`handoff`](skills/handoff/SKILL.md) | Writes a handoff note at the end of a session: the goal, what is done and how it was verified, decisions, open questions and next steps. You invoke it yourself. |
 | [`pick-up`](skills/pick-up/SKILL.md) | Loads the newest handoff, checks the repository for anything that changed since, and starts on the next step. |
 | [`no-ai-attribution`](skills/no-ai-attribution/SKILL.md) | Removes AI credit lines and AI co-author trailers from commits, PRs, issues, comments and tickets before they are posted. |
@@ -85,6 +92,7 @@ Each subagent's model is set in its file. The `supervisor` skill sends work to t
 | [`doc-writer`](agents/doc-writer.md) | Haiku | Writes prose from the facts it is given, and writes `TODO(fact)` where a fact is missing. |
 | [`implementer`](agents/implementer.md) | Sonnet | Builds one ticket test-first and reports each command's exit code. It does not commit. |
 | [`tester`](agents/tester.md) | Sonnet | Writes and runs tests, and touches only tests and fixtures. |
+| [`researcher`](agents/researcher.md) | Sonnet | Reads primary sources in the background and writes a note where every claim has a source and a date. |
 | [`reviewer`](agents/reviewer.md) | Opus | Reviews a diff against the ticket and the repository's standards, giving a failure scenario for each finding. |
 
 ## Hooks
@@ -108,7 +116,7 @@ The plugin registers it through [`hooks/hooks.json`](hooks/hooks.json). With a c
 
 ## Your own copy wins
 
-A skill in `~/.claude/skills/` outranks a project's `.claude/skills/` skill with the same name. So `supervisor`, `handoff` and `pick-up` each check first for a project copy and follow that one when it exists. Subagents need no such step: a project's `.claude/agents/` file already outranks the one installed here.
+A skill in `~/.claude/skills/` outranks a project's `.claude/skills/` skill with the same name. So `supervisor`, `handoff`, `pick-up`, `tdd` and `diagnosing-bugs` each check first for a project copy and follow that one when it exists. Subagents need no such step: a project's `.claude/agents/` file already outranks the one installed here.
 
 ## Development
 
@@ -121,7 +129,7 @@ The tests check the lint script, the collision script, the handoff hook, each sk
 
 ## Credits
 
-The handoff skill grew out of the handoff idea in [Matt Pocock's skills](https://github.com/mattpocock/skills).
+The handoff skill grew out of the handoff idea in [Matt Pocock's skills](https://github.com/mattpocock/skills). `grilling`, `tdd`, `diagnosing-bugs`, `research` and `writing-for-agents` are adapted from the same repository under the MIT License; each keeps the notice in its own `LICENSE.md`.
 
 ## License
 
