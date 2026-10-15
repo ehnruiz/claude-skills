@@ -9,6 +9,8 @@ Reference for writing any document an agent consumes: a skill, an `AGENTS.md` / 
 
 When the document you're writing is a skill, read [`SKILL-MECHANICS.md`](SKILL-MECHANICS.md) for frontmatter, invocation choice, and router skills. Credit and license: `LICENSE.md` in this folder.
 
+When you add or reword a discipline rule (one an agent under pressure would explain away), read [`PRESSURE-TESTS.md`](PRESSURE-TESTS.md) and watch the rule go red, then green, in a fresh subagent before it ships.
+
 ## Context pointers
 
 A **context pointer** is a reference held in the agent's context that names some out-of-context material and encodes the condition for reaching it. A skill's description is one; a line in `AGENTS.md` naming a doc is the same object. The pointer's _wording_, not its target, decides when the agent reaches the material, and how reliably. A must-have target behind a weakly worded pointer is a variance bug: sharpen the wording first, and inline the material only if sharpening fails.

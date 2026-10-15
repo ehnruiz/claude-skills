@@ -1,6 +1,6 @@
 ---
 name: regression-proof
-description: Prove a change before claiming it is done - judge lint, typecheck, tests and git push by their exit codes rather than by reading output, and show that a bug fix's regression test fails without the fix. Use before saying "tests pass", "lint is clean", "pushed" or "fixed in <sha>"; before opening or updating a pull request; whenever a command is piped into grep, tail or head; and whenever a bug fix or false-positive fix ships with a new test.
+description: Prove a change before claiming it is done - judge lint, typecheck, tests and git push by their exit codes rather than by reading output, and show that a bug fix's regression test fails without the fix. Use before saying "tests pass", "lint is clean", "pushed" or "fixed in <sha>"; before opening or updating a pull request; whenever a command is piped into grep, tail or head; and whenever a bug fix or false-positive fix ships with a new test. For whether a measured number (a score, a timing, an eval result) can be credited to a change, use `explain-the-number`.
 ---
 
 # Regression proof

@@ -1,6 +1,6 @@
 ---
 name: plain-writing
-description: Draft text a person will send or post under their own name, in plain language that does not read as machine-written. Use when drafting or editing a chat message, an email, a pull request description, a ticket, a comment, a wiki page, an announcement or a post on the user's behalf, or when the user says a draft "sounds like AI", is too long, or is too stiff.
+description: Draft text a person will send or post under their own name, in plain language that does not read as machine-written. Use when drafting or editing a chat message, an email, a pull request description, a comment, a wiki page, an announcement or a post on the user's behalf, or when the user says a draft "sounds like AI", is too long, or is too stiff. For a ticket, use `ticket-write` to write one and `ticket-trim` to shorten one.
 ---
 
 # Plain writing

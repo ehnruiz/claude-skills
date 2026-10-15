@@ -84,8 +84,18 @@ class FindCollisionsTest(unittest.TestCase):
         self.assertEqual(run(LIBRARY / "a" / "invoice-chase"), 0)
         self.assertEqual(run(LIBRARY / "missing"), 2)
 
-    def test_this_repository_has_no_collisions(self):
-        self.assertEqual(run(ROOT / "skills"), 0)
+    def test_every_overlapping_pair_in_this_repository_has_been_reviewed(self):
+        # Pairs judged with the skill's step 3 and found resolved: each description draws the line.
+        # Pointing two descriptions at each other raises their shared-word score, so a resolved pair
+        # can sit over the threshold. A new pair fails here until someone judges it, fixes the
+        # descriptions or adds it with a reason.
+        reviewed = {
+            frozenset({"explain-the-number", "regression-proof"}),  # a measured number vs. gates and tests
+        }
+        skills = find_collisions.load_skills([ROOT / "skills"])
+        found = {frozenset({p["a"]["name"], p["b"]["name"]}) for p in find_collisions.find_pairs(skills, 0.25)}
+        self.assertEqual(found - reviewed, set(), "unreviewed overlapping skills; run the skill-collision-audit skill")
+        self.assertEqual(find_collisions.find_duplicate_names(skills), {})
 
 
 if __name__ == "__main__":
