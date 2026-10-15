@@ -1,10 +1,11 @@
 # claude-skills
 
-Skills and subagents for [Claude Code](https://docs.claude.com/en/docs/claude-code) that I use every day. They do six jobs:
+Skills and subagents for [Claude Code](https://docs.claude.com/en/docs/claude-code) that I use every day. They do seven jobs:
 
 - **Spend less on each task.** The main session plans and checks the work. Cheaper models do the searching, writing and building.
 - **Build, debug and prove changes.** Test first, build a failing loop before guessing at a bug, and judge every check by its exit code.
 - **Pick up where you left off.** A session writes a handoff note, and the next session continues from it without re-asking.
+- **Prepare for reviews and meetings.** Close out an epic against its own scope, link pages and tickets both ways, and prep a 1:1 with a senior leader.
 - **Write tickets people read.** A short description for the product owner, with the engineering detail in the first comment.
 - **Keep a growing skill library predictable.** Find skills that compete for the same request before they misfire.
 - **Publish under your own name.** No "generated with" footers or AI co-author lines in your commits and PRs.
@@ -44,6 +45,11 @@ cp claude-skills/agents/*.md ~/.claude/agents/
 | [`ticket-write`](skills/ticket-write/SKILL.md) | Drafts bugs, tasks, stories, spikes and epics with word budgets, then checks the draft with a lint script before filing. Works with Jira, Linear or GitHub Issues. |
 | [`ticket-trim`](skills/ticket-trim/SKILL.md) | Shortens an existing ticket that is too long. It saves the original text in a comment first. |
 | [`ticket-digest`](skills/ticket-digest/SKILL.md) | Turns today's new tickets into one message to paste into chat, one line per ticket. |
+| [`llm-integration`](skills/llm-integration/SKILL.md) | A checklist for code that calls a language model or exposes tools to one: prompts as versioned source, model output as untrusted input, cost caps, and how an MCP server should stop. |
+| [`plain-writing`](skills/plain-writing/SKILL.md) | Drafts messages, emails, PR descriptions and tickets in plain language under your name, and cuts the patterns that read as machine-written. |
+| [`epic-review`](skills/epic-review/SKILL.md) | Checks a Jira epic item by item against its In Scope list, flags what the review meeting must decide, and drafts the scope of the next epic. |
+| [`confluence-jira-links`](skills/confluence-jira-links/SKILL.md) | Shows each ticket on a Confluence page as a smart link and makes sure each ticket links back to the page once, not twice. |
+| [`leader-1-1-prep`](skills/leader-1-1-prep/SKILL.md) | Builds a one-screen brief for a 1:1 with a skip-level: what carried forward, at most two asks, people, strategy, and one question about your growth. |
 | [`skill-collision-audit`](skills/skill-collision-audit/SKILL.md) | Finds skills whose descriptions compete for the same request, then fixes the descriptions so each request goes to exactly one skill. A script shortlists the overlapping pairs and same-name duplicates; Claude judges each pair against realistic requests. |
 
 ### Ticket budgets
@@ -112,6 +118,20 @@ The plugin registers it through [`hooks/hooks.json`](hooks/hooks.json). With a c
     ]
   }
 }
+```
+
+## Rules for your CLAUDE.md
+
+Some habits depend on a moment in the session rather than on a request, so a skill description never fires for them. Put them in `~/.claude/CLAUDE.md` instead.
+
+**File a waiting session in the desktop app.** In the Claude desktop app, create a sidebar section named "Pending my feedback", then add:
+
+```markdown
+Whenever a session ends its turn waiting on my answer, decision or approval, move it into the sidebar
+section named "Pending my feedback" (`mcp__ccd_sidebar__move_sessions` with `session_ids: ["self"]` and the
+section's id from `mcp__ccd_sidebar__list_sections`; load the tools with ToolSearch first if they are
+deferred). Once I have answered and the work resumes, move it back to Ungrouped (`section_id: "sessions"`)
+or to the section it came from. Sessions outside the desktop app skip this.
 ```
 
 ## Your own copy wins

@@ -1,6 +1,6 @@
 ---
 name: diagnosing-bugs
-description: A disciplined loop for hard bugs, flaky tests and performance regressions - build a red-capable feedback loop first, reproduce and minimize, rank falsifiable hypotheses, instrument one variable at a time, fix behind a regression test, clean up. Use when the user says "diagnose", "debug this" or "why is this failing", reports a wrong result, a crash, a timeout, a flaky test or a slowdown, or when a first-glance fix did not hold.
+description: A disciplined loop for hard bugs, flaky tests and performance regressions - build a red-capable feedback loop first, reproduce and minimize, rank falsifiable hypotheses, instrument one variable at a time, then repair and remove the probes. Use when the user says "diagnose", "debug this" or "why is this failing", reports a wrong result, a crash, a timeout, a flaky test or a slowdown, or when a first-glance fix did not hold.
 ---
 
 # Diagnosing bugs

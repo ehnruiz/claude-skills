@@ -60,5 +60,6 @@ Each is in this repository. The order of work above runs without them, with less
 - `regression-proof`: exit codes, and proving a fix's test fails without the fix.
 - `diagnosing-bugs`: a feedback loop first, then reproduce, hypothesize, instrument, fix and clean up.
 - `research`: a cited note from primary sources, written by `researcher` in the background.
+- `llm-integration`: the checklist when a ticket calls a model or exposes tools to one.
 - `writing-for-agents`: how to edit this skill, the agent files, or an `AGENTS.md` or `CLAUDE.md`.
 - `handoff` and `pick-up`: leaving work for the next session, and continuing it.
