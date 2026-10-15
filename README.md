@@ -19,6 +19,13 @@ As a plugin, from inside Claude Code:
 /plugin install agent-workflow@ehnruiz
 ```
 
+With the [`skills`](https://www.npmjs.com/package/skills) CLI, which can also install into other coding agents (`--agent`):
+
+```bash
+npx skills add ehnruiz/claude-skills              # pick from the list
+npx skills add ehnruiz/claude-skills --skill tdd  # one skill
+```
+
 Or copy only the parts you want:
 
 ```bash
