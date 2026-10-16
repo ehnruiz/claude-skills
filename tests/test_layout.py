@@ -1,10 +1,13 @@
 import json
 import pathlib
 import re
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+LINK = re.compile(r"\]\(([^)\s]+)\)")
+DOCS = [ROOT / "README.md", ROOT / "CHANGELOG.md", ROOT / "hooks/README.md", *sorted((ROOT / "docs").glob("*.md"))]
 
 
 def frontmatter(path):
@@ -15,6 +18,18 @@ def frontmatter(path):
         key, _, value = line.partition(":")
         fields[key.strip()] = value.strip()
     return fields
+
+
+def relative_links(text):
+    """The file paths that Markdown links in `text` point at: no URLs, no bare anchors, fragments stripped."""
+    for target in LINK.findall(text):
+        path = target.split("#", 1)[0]
+        if path and ":" not in path:
+            yield path
+
+
+def broken_links(path):
+    return [target for target in relative_links(path.read_text(encoding="utf-8")) if not (path.parent / target).exists()]
 
 
 class LayoutTest(unittest.TestCase):
@@ -35,8 +50,7 @@ class LayoutTest(unittest.TestCase):
 
     def test_relative_links_in_skills_resolve(self):
         for path in (ROOT / "skills").rglob("*.md"):
-            for target in re.findall(r"\]\(([^)#:]+)\)", path.read_text(encoding="utf-8")):
-                self.assertTrue((path.parent / target).exists(), f"{path}: {target}")
+            self.assertEqual(broken_links(path), [], path)
 
     def test_readme_lists_every_skill_and_agent(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -51,18 +65,29 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual([p["name"] for p in market["plugins"]], [plugin["name"]])
 
     def test_relative_links_in_docs_resolve(self):
-        docs = [ROOT / "README.md", ROOT / "CHANGELOG.md", ROOT / "hooks/README.md", *sorted((ROOT / "docs").glob("*.md"))]
-        self.assertGreater(len(docs), 3)
-        for path in docs:
-            for target in re.findall(r"\]\(([^)#:]+)\)", path.read_text(encoding="utf-8")):
-                self.assertTrue((path.parent / target).exists(), f"{path}: {target}")
+        self.assertGreater(len(DOCS), 3)
+        for path in DOCS:
+            self.assertEqual(broken_links(path), [], path)
 
-    def test_readme_install_command_names_the_plugin_as_the_manifests_do(self):
+    def test_link_check_strips_fragments_and_skips_urls_and_anchors(self):
+        text = "[a](x.md#section) [b](https://example.com/y.md) [c](#top) [d](../z.md)"
+        self.assertEqual(list(relative_links(text)), ["x.md", "../z.md"])
+
+    def test_link_check_reports_a_missing_target(self):
+        with tempfile.TemporaryDirectory() as folder:
+            page = pathlib.Path(folder) / "page.md"
+            (pathlib.Path(folder) / "here.md").write_text("", encoding="utf-8")
+            page.write_text("[ok](here.md#part) [gone](nowhere.md#part)", encoding="utf-8")
+            self.assertEqual(broken_links(page), ["nowhere.md"])
+
+    def test_install_commands_name_the_plugin_as_the_manifests_do(self):
         plugin = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
         market = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text())
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn(f"/plugin marketplace add ehnruiz/claude-skills", readme)
-        self.assertIn(f"/plugin install {plugin['name']}@{market['name']}", readme)
+        owner_repo = plugin["repository"].removeprefix("https://github.com/")
+        for path in (ROOT / "README.md", ROOT / "docs/install.md"):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn(f"/plugin marketplace add {owner_repo}", text, path)
+            self.assertIn(f"/plugin install {plugin['name']}@{market['name']}", text, path)
 
     def test_changelog_has_a_section_for_the_current_version(self):
         plugin = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())

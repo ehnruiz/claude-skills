@@ -1,6 +1,6 @@
 # Three examples, run against this repository
 
-Each example below was run on 2026-10-16 on macOS with Python 3.14.7, Node 22.23.2 and Claude Code 2.1.296. The commands are copied from the terminal and the exit codes are the ones that came back. Nothing here is a mock-up: you can rerun every command from a clone of this repository.
+Each example below was run on 2026-10-16 on macOS with Python 3.14.7, Node 22.23.2 and Claude Code 2.1.296. The commands are copied from the terminal and the exit codes are the ones that came back. Examples 1 and 2 can be rerun from a clone of this repository. Example 3 is the record of the session that built this page, checked against its result.
 
 ## 1. `regression-proof`: show that a test fails without its fix
 
@@ -55,7 +55,7 @@ $ python3 skills/skill-collision-audit/scripts/find_collisions.py skills; echo "
 exit=1
 ```
 
-The score is the cosine similarity of the two descriptions' TF-IDF vectors, so words every skill uses count for little and shared distinctive words count for a lot. The exit code is 1 whenever a pair is flagged: the script is a shortlist, not a gate, and the judgment is the next step.
+The score is the cosine similarity of the two descriptions' TF-IDF vectors, so words every skill uses count for little and shared distinctive words count for a lot. The exit code is 1 whenever a pair is flagged. The script produces the shortlist; judging each pair is the next step.
 
 Judging the pair by the skill's three verdicts (collision, resolved, fine):
 
@@ -77,17 +77,20 @@ The [`supervisor`](../skills/supervisor/SKILL.md) skill makes the main session a
 | Ticket | Agent | Why that tier |
 | --- | --- | --- |
 | Confirm from the official docs how plugin skills are named in a session, how users get updates, and the precedence between plugin, user and project skills | a docs-reading agent, in the background | A lookup with a citation, independent of the writing, so it ran while the writing continued |
-| Review the finished diff against the ask and the repository's standards | `reviewer` (Opus) | The skill sends every diff to the strongest tier before a PR; its findings were fixed and the gates rerun |
+| Review the committed diff against the ask and the repository's standards | `reviewer` (Opus) | The skill sends every diff to the strongest tier before a PR |
 
-A ticket carries the behavior wanted, where it goes, the command that proves it, the files involved and what must stay unchanged. The review ticket named the branch, the ten-point ask, and the constraints (preserve every skill, agent and hook; no unmeasured claims).
+A ticket carries the behavior wanted, where it goes, the command that proves it, the files involved and what must stay unchanged. The review ticket named the commit, the ten-point ask, the constraints (preserve every skill, agent and hook; no unmeasured claims) and the measured facts the reviewer could rely on.
 
-**Verification by exit code.** The supervisor ran each gate itself, one command per step, and judged it by its code rather than by a worker's summary:
+**What the review found.** Thirteen findings, each with a file, a line and a failure scenario. The ones that mattered most: the first draft of this example described the review and a gate rerun before either had happened; the changelog left out five commits that shipped in 1.2.0 and 1.3.0; the link test skipped any link with a `#fragment` and had no negative case; the install table listed a CI matrix that had not run as if it had. Every finding was fixed in a second commit, and the gates ran again on it. The reviewer also ran the suite on the Mac's system Python, 3.9.6, which turned the documented 3.9 floor from an inference into a measurement.
+
+**Verification by exit code.** The supervisor ran each gate itself, one command per step, and judged it by its code rather than by a worker's summary. After the review fixes:
 
 | Gate | Command | Exit |
 | --- | --- | --- |
-| Python tests, 3.14 | `python3 -m unittest discover -s tests` | 0 (33 tests) |
-| Node hook tests, 22 | `node --test tests/hooks/` | 0 (253 tests) |
-| Node hook tests, 20 | `~/.nvm/versions/node/v20.20.0/bin/node --test tests/hooks/` | 0 (253 tests) |
+| Python tests, 3.14.7 | `python3 -m unittest discover -s tests` | 0 (38 tests) |
+| Python tests, 3.9.6 | `/usr/bin/python3 -m unittest discover -s tests` | 0 (38 tests) |
+| Node hook tests, 22.23.2 | `node --test tests/hooks/` | 0 (253 tests) |
+| Node hook tests, 20.20.0 | `node --test tests/hooks/`, with Node 20 selected through nvm | 0 (253 tests) |
 | Plugin manifest | `claude plugin validate .` | 0 |
 
 **Escalation.** None was needed here. The rule when it is: a worker that fails the same ticket twice moves up one tier with the same ticket and its failed report attached, Haiku to Sonnet to Opus to the supervisor. A third attempt on the same model with the same prompt is wasted.

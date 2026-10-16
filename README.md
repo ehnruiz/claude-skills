@@ -1,6 +1,6 @@
 # claude-skills
 
-Skills, subagents and hooks for [Claude Code](https://docs.claude.com/en/docs/claude-code), for engineers who want an agent that proves its work. A supervisor sends each step to the cheapest model that can do it and moves it up a tier when it fails. Gates pass by exit code, never because the output looked clean. A bug fix ships with a test shown to fail without the fix, and a session ends with a handoff note the next one picks up. The library checks itself: frontmatter, links, scripts, hooks and this README run in CI, and a collision audit keeps skill descriptions from competing.
+Skills, subagents and hooks for [Claude Code](https://docs.claude.com/en/docs/claude-code), for engineers who want an agent that proves its work. A supervisor sends each step to the cheapest model that can do it and moves it up a tier after two failures. A gate passes by its exit code. A bug fix ships with a test shown to fail without the fix, and a session ends with a handoff note the next one picks up. The library checks itself: frontmatter, links, scripts, hooks and this README run in CI, and a collision audit keeps skill descriptions from competing.
 
 ## Install
 
@@ -30,9 +30,19 @@ cp claude-skills/agents/*.md ~/.claude/agents/
 
 Requirements (Claude Code; Python 3.9+ for the scripts and the SessionStart hook; Node 20+ for the opt-in hooks), what was tested where, and how to check each install path are in [docs/install.md](docs/install.md).
 
-## Five minutes, one bug fix
+## Quick start
 
-The workflow the skills are built around, on a project of yours. The slash commands assume the plugin install; with a copy install drop the `agent-workflow:` prefix.
+After the plugin install, `claude plugin list` shows `agent-workflow@ehnruiz` as enabled. Two of the scripts run without a model, so from a clone they are a quick check that Python and the paths are right:
+
+```
+$ python3 hooks/handoff_notice.py --print-dir
+/Users/you/.claude/projects/-Users-you-projects-claude-skills/handoffs
+$ python3 skills/skill-collision-audit/scripts/find_collisions.py skills
+21 skills, 1 overlapping pairs, 0 duplicate names
+...
+```
+
+Then the workflow the skills are built around, on a project of yours. The slash commands assume the plugin install; with a copy install drop the `agent-workflow:` prefix.
 
 1. **Start the session and say what is wrong.** "The date parser drops the timezone on `2026-10-16T09:00+02:00`. Diagnose it and fix it." The `diagnosing-bugs` skill fires on "diagnose": it builds a command that goes red on the bug before anyone guesses at a cause, then reproduces, ranks hypotheses and instruments one variable at a time.
 2. **Let the supervisor route the steps.** With more than one step, `supervisor` fires. It keeps the plan and the judgment in your session, sends a Haiku `scout` to find the parser and its tests, and hands the fix to a Sonnet `implementer` as one ticket: the behavior wanted, where it goes, the command that proves it, the files involved, what must stay unchanged. The `tdd` skill makes the implementer write the failing test first. A worker that fails the same ticket twice moves up a tier with its failed report attached.
@@ -40,7 +50,7 @@ The workflow the skills are built around, on a project of yours. The slash comma
 4. **Send the diff to review.** The Opus `reviewer` reads the diff against the ask and the project's standards and reports each finding with a file, a line and a failure scenario. The supervisor fixes what holds up and reruns the gates.
 5. **Stop without losing the thread.** `/agent-workflow:handoff` writes a note outside the repository: goal, what is done and how it was verified, decisions, open questions, next steps. The next session sees the opening of that note at startup through the `handoff_notice.py` hook, and `/agent-workflow:pick-up` checks the repository for drift before it starts on the next step.
 
-The prompts in steps 1 and 2 are the shape of a request, not a transcript. What is verified is the behavior of the scripts, hooks and tests, and the install path; [docs/install.md](docs/install.md) says what was run and where.
+The prompts in steps 1 and 2 show the shape of a request; no session was run against them for this page. What was run is the scripts, the hooks, the tests and the install path, and [docs/install.md](docs/install.md) says where.
 
 ## Examples
 
@@ -48,7 +58,7 @@ Three examples run against this repository, with the commands and the exit codes
 
 - `regression-proof` applied to commit `356016b`: the new test fails on the parent commit (exit 1) and passes on the fix (exit 0), the verdict a pull request's test plan should carry.
 - `skill-collision-audit` on this repository's 21 skills: one pair flagged at 0.32, judged resolved because each description names the other and draws the line.
-- `supervisor` on the pull request that added the docs: what stayed with the supervisor and why, what was delegated to which tier, and the gates with their exit codes.
+- `supervisor` on the pull request that added the docs: what stayed with the supervisor and why, what was delegated to which tier, what the review found, and the gates with their exit codes.
 
 ## Skills
 

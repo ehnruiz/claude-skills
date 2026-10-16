@@ -8,16 +8,20 @@
 | `handoff_notice.py` hook, `ticket_lint.py`, `find_collisions.py` | Python 3.9 or newer, `git` on `PATH` | The scripts use `str.removesuffix`, which arrived in 3.9. On Python 3.8 the test suite fails with `AttributeError: 'str' object has no attribute 'removesuffix'` |
 | The four opt-in hooks under `hooks/*.mjs` | Node 20 or newer, `git` on `PATH` | Plain ES modules with no dependencies. `gitleaks` is optional for `commit-secrets` |
 
-Tested on 2026-10-16:
+Measured on 2026-10-16 on macOS 15 (Darwin 24.6) with Claude Code 2.1.296:
 
-| Platform | Python | Node | Claude Code | Result |
-| --- | --- | --- | --- | --- |
-| macOS 15 (Darwin 24.6) | 3.14.7 | 22.23.2 and 20.20.0 | 2.1.296 | Python suite 33 tests OK, Node suite 253 tests pass on both Node versions, plugin install and validate OK |
-| Ubuntu (GitHub Actions) | 3.9 and 3.12 | 20 and 22 | not used | The CI matrix in `.github/workflows/test.yml` |
+| Check | Versions | Result |
+| --- | --- | --- |
+| `python3 -m unittest discover -s tests` | Python 3.14.7 and 3.9.6 | 38 tests OK, exit 0 on both |
+| `python3 -m unittest discover -s tests` | Python 3.8 | exit 1, `AttributeError` on `removesuffix` |
+| `node --test tests/hooks/` | Node 22.23.2 and 20.20.0 | 253 tests pass, exit 0 on both |
+| `claude plugin validate .`, marketplace add, plugin install, list, details | Claude Code 2.1.296 | exit 0 each |
 
-Windows is untested. The Node hooks are started as `node <script>`, which the Claude Code hooks reference says works on every platform. The SessionStart hook is started as `python3 <script>`, and the docs give no guidance on the Python interpreter name on Windows, so expect to edit that command if `python3` is not on your `PATH`.
+CI (`.github/workflows/test.yml`) is configured to run both suites on Ubuntu with Python 3.9 and 3.12 and Node 20 and 22, on every push to `main` and every pull request. The badge on the pull request or the Actions tab says whether the last run passed.
 
-The `skills` CLI (`npx skills add ehnruiz/claude-skills`) can also copy the skills into other coding agents with `--agent`. Only the skills travel that way: the subagents and hooks are Claude Code features. Running it with `--list` was verified against this repository (21 skills found); installs into other agents were not.
+Windows is untested. The Node hooks are started as `node <script>`, which the Claude Code hooks reference says works on every platform. The SessionStart hook is started as `python3 <script>`, and that reference gives no guidance on the Python interpreter name on Windows, so expect to edit that command if `python3` is not on your `PATH`.
+
+The `skills` CLI (`npx skills add ehnruiz/claude-skills`) can also copy the skills into other coding agents with `--agent`. Only the skills travel that way: the subagents and hooks are Claude Code features. Running it with `--list` against this repository printed "Found 21 skills" and exited 0; installs into other agents were not run.
 
 ## Three ways to install
 
@@ -28,14 +32,14 @@ The `skills` CLI (`npx skills add ehnruiz/claude-skills`) can also copy the skil
 /plugin install agent-workflow@ehnruiz
 ```
 
-The second command opens the plugin's details so you can pick a scope (user, project or local) before it installs. From a shell the same two steps are:
+The Claude Code plugin docs say the second command opens the plugin's details so you can pick a scope (user, project or local) before it installs. From a shell the same two steps are:
 
 ```bash
 claude plugin marketplace add ehnruiz/claude-skills
 claude plugin install agent-workflow@ehnruiz
 ```
 
-The ids come from the manifests: `agent-workflow` is `name` in `.claude-plugin/plugin.json`, `ehnruiz` is `name` in `.claude-plugin/marketplace.json`. A plugin's skills are namespaced, so once installed the slash commands read `/agent-workflow:handoff`, `/agent-workflow:pick-up` and so on, and the subagents register as `agent-workflow:scout`, `agent-workflow:reviewer` and so on. A skill of the same name in `~/.claude/skills/` or a project's `.claude/skills/` loads alongside the plugin's copy rather than replacing it, which is why `supervisor`, `handoff`, `pick-up`, `tdd` and `diagnosing-bugs` each start by checking for a project copy.
+The ids come from the manifests: `agent-workflow` is `name` in `.claude-plugin/plugin.json`, `ehnruiz` is `name` in `.claude-plugin/marketplace.json`. Per the Claude Code docs, a plugin's skills are namespaced, so once installed the slash commands read `/agent-workflow:handoff`, `/agent-workflow:pick-up` and so on, and the subagents register as `agent-workflow:scout`, `agent-workflow:reviewer` and so on. The same docs give the order for same-named skills: a skill in `~/.claude/skills/` outranks one in a project's `.claude/skills/`, and a plugin's copy loads alongside both. That order is why `supervisor`, `handoff`, `pick-up`, `tdd` and `diagnosing-bugs` each start by checking for a project copy, as the README's "Your own copy wins" section explains.
 
 **With the `skills` CLI**, which can also install into other coding agents:
 
@@ -107,11 +111,11 @@ node --test tests/hooks/
 claude plugin validate .
 ```
 
-Both suites exit 0 on a clean checkout. The Node suite takes a few minutes because the `commit-secrets` tests create real git repositories in a temporary directory.
+Both suites exit 0 on a clean checkout. The Node suite took about four minutes here, because the `commit-secrets` tests create real git repositories in a temporary directory.
 
 ## Updating
 
-Updates for a third-party marketplace are not automatic unless you turn auto-update on in `/plugin`, Marketplaces tab. To pull a new version:
+The Claude Code docs say updates for a marketplace other than Anthropic's are off unless you turn auto-update on under `/plugin`, Marketplaces tab. To pull a new version:
 
 ```bash
 claude plugin marketplace update ehnruiz

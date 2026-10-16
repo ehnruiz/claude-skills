@@ -26,7 +26,7 @@ Docs-only changes get no bump because they ship nothing to an installed user. Th
    git push origin v1.6.0
    ```
 
-   The repository's one existing tag is `v1.5.0`, so new tags keep that form. Claude Code also offers `claude plugin tag`, which creates `agent-workflow--v1.6.0` after checking that `plugin.json` and the marketplace entry agree; its `--dry-run` is a useful check even if the tag itself is created by hand.
+   Tags are `v<version>`, the form of the one existing tag, `v1.5.0`. Before tagging, `claude plugin tag --dry-run .` checks that `plugin.json` and the marketplace entry agree; it proposes a tag of its own form (`agent-workflow--v1.6.0`), which this repository does not use.
 3. Create a GitHub release from the tag with that version's changelog section as the body:
 
    ```bash
