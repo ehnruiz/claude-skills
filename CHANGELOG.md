@@ -6,7 +6,7 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
-## 1.5.1 (unreleased)
+## 1.5.1 (2026-10-16, tag `v1.5.1`)
 
 ### Fixed
 
