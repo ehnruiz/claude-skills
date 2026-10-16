@@ -6,6 +6,12 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+## 1.5.1 (unreleased)
+
+### Fixed
+
+- The hooks read stdin to its end even when it is a non-blocking pipe that is momentarily empty. Before, an `EAGAIN` on the read made `config-protection`, `commit-secrets`, `edited-files` and `stop-check` see an empty event and allow the call; the `config-protection` suite failed this way in 5 of 12 runs on Linux with Node 20.
+
 ### Added
 
 - `docs/examples.md`: three examples run against this repository with their commands and exit codes, for `regression-proof`, `skill-collision-audit` and `supervisor`.

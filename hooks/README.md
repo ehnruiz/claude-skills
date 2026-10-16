@@ -6,7 +6,7 @@ They are opt-in per project. The plugin does not register them in `hooks.json`; 
 
 ## How they work
 
-A hook reads an event from stdin as JSON, answers on stdout with a decision, and prints nothing when it allows. A malformed or empty event always allows, because a hook must never fail the tool it watches. A decision looks like this:
+A hook reads an event from stdin as JSON, answers on stdout with a decision, and prints nothing when it allows. A malformed or empty event always allows, because a hook must never fail the tool it watches. The read retries when stdin is a non-blocking pipe that is momentarily empty (`EAGAIN`), for up to ten seconds, so a slow writer does not read as an empty event. A decision looks like this:
 
 ```json
 {

@@ -10,16 +10,50 @@
  * A hook must never crash the tool it watches: a malformed or empty stdin reads as an empty event and the hook
  * allows the call.
  */
-import { readFileSync, realpathSync } from "node:fs";
+import { readSync, realpathSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+
+/**
+ * Everything on stdin, read to its end. Stdin can be a non-blocking pipe (seen on Linux when a hook is spawned by a
+ * Node test runner), and then a read that finds the pipe momentarily empty throws EAGAIN instead of waiting. A
+ * `readFileSync(0)` gave up on that error, so the hook saw an empty event and allowed the call. This reads in a
+ * loop, waits a few milliseconds on EAGAIN, and stops at end of file or at the deadline, whichever comes first.
+ * @param {(buf: Buffer) => number} read bytes read into `buf`, 0 at end of file; the default reads fd 0
+ * @param {number} waitMs how long to wait after an EAGAIN before reading again
+ * @param {number} deadlineMs how long to keep retrying in all, after which what was read so far is returned
+ * @returns {string}
+ */
+export function readStdin(read = (buf) => readSync(0, buf, 0, buf.length, null), waitMs = 5, deadlineMs = 10_000) {
+  const chunks = [];
+  const buf = Buffer.alloc(64 * 1024);
+  const sleeper = new Int32Array(new SharedArrayBuffer(4));
+  const deadline = Date.now() + deadlineMs;
+  for (;;) {
+    let n;
+    try {
+      n = read(buf);
+    } catch (e) {
+      if (e && e.code === "EAGAIN") {
+        if (Date.now() >= deadline) break;
+        Atomics.wait(sleeper, 0, 0, waitMs);
+        continue;
+      }
+      if (e && e.code === "EOF") break;
+      throw e;
+    }
+    if (n === 0) break;
+    chunks.push(Buffer.from(buf.subarray(0, n)));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
 
 /** @returns {Record<string, any>} the hook event, or `{}` when stdin is empty or not JSON. */
 export function readHookInput() {
   let raw;
   try {
-    raw = readFileSync(0, "utf8");
+    raw = readStdin();
   } catch {
     return {};
   }
