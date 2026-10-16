@@ -1,14 +1,6 @@
 # claude-skills
 
-Skills and subagents for [Claude Code](https://docs.claude.com/en/docs/claude-code) that I use every day. They do seven jobs:
-
-- **Spend less on each task.** The main session plans and checks the work. Cheaper models do the searching, writing and building.
-- **Build, debug and prove changes.** Test first, build a failing loop before guessing at a bug, and judge every check by its exit code.
-- **Pick up where you left off.** A session writes a handoff note, and the next session continues from it without re-asking.
-- **Prepare for reviews and meetings.** Close out an epic against its own scope, link pages and tickets both ways, and prep a 1:1 with a senior leader.
-- **Write tickets people read.** A short description for the product owner, with the engineering detail in the first comment.
-- **Keep a growing skill library predictable.** Find skills that compete for the same request before they misfire.
-- **Publish under your own name.** No "generated with" footers or AI co-author lines in your commits and PRs.
+Skills, subagents and hooks for [Claude Code](https://docs.claude.com/en/docs/claude-code), for engineers who want an agent that proves its work. A supervisor sends each step to the cheapest model that can do it and moves it up a tier when it fails. Gates pass by exit code, never because the output looked clean. A bug fix ships with a test shown to fail without the fix, and a session ends with a handoff note the next one picks up. The library checks itself: frontmatter, links, scripts, hooks and this README run in CI, and a collision audit keeps skill descriptions from competing.
 
 ## Install
 
@@ -18,6 +10,8 @@ As a plugin, from inside Claude Code:
 /plugin marketplace add ehnruiz/claude-skills
 /plugin install agent-workflow@ehnruiz
 ```
+
+The plugin is `agent-workflow` in the `ehnruiz` marketplace, the names in [`.claude-plugin/`](.claude-plugin/). Once installed, its skills are namespaced: `/agent-workflow:handoff`, `/agent-workflow:pick-up`. The same two steps from a shell are `claude plugin marketplace add ehnruiz/claude-skills` and `claude plugin install agent-workflow@ehnruiz`, and `claude plugin list` then shows `agent-workflow@ehnruiz` with its version.
 
 With the [`skills`](https://www.npmjs.com/package/skills) CLI, which can also install into other coding agents (`--agent`):
 
@@ -33,6 +27,28 @@ git clone https://github.com/ehnruiz/claude-skills
 cp -R claude-skills/skills/ticket-write ~/.claude/skills/
 cp claude-skills/agents/*.md ~/.claude/agents/
 ```
+
+Requirements (Claude Code; Python 3.9+ for the scripts and the SessionStart hook; Node 20+ for the opt-in hooks), what was tested where, and how to check each install path are in [docs/install.md](docs/install.md).
+
+## Five minutes, one bug fix
+
+The workflow the skills are built around, on a project of yours. The slash commands assume the plugin install; with a copy install drop the `agent-workflow:` prefix.
+
+1. **Start the session and say what is wrong.** "The date parser drops the timezone on `2026-10-16T09:00+02:00`. Diagnose it and fix it." The `diagnosing-bugs` skill fires on "diagnose": it builds a command that goes red on the bug before anyone guesses at a cause, then reproduces, ranks hypotheses and instruments one variable at a time.
+2. **Let the supervisor route the steps.** With more than one step, `supervisor` fires. It keeps the plan and the judgment in your session, sends a Haiku `scout` to find the parser and its tests, and hands the fix to a Sonnet `implementer` as one ticket: the behavior wanted, where it goes, the command that proves it, the files involved, what must stay unchanged. The `tdd` skill makes the implementer write the failing test first. A worker that fails the same ticket twice moves up a tier with its failed report attached.
+3. **Read the gates as exit codes.** The supervisor runs lint, the type check and the tests itself, one command per step, and reports `lint=0 typecheck=0 test=0`, never "all green". The `regression-proof` skill adds the step most people skip: in a scratch worktree at the merge base, with only the new test copied in, the test must fail. [docs/examples.md](docs/examples.md) shows that recipe on a real fix from this repository, with both exit codes.
+4. **Send the diff to review.** The Opus `reviewer` reads the diff against the ask and the project's standards and reports each finding with a file, a line and a failure scenario. The supervisor fixes what holds up and reruns the gates.
+5. **Stop without losing the thread.** `/agent-workflow:handoff` writes a note outside the repository: goal, what is done and how it was verified, decisions, open questions, next steps. The next session sees the opening of that note at startup through the `handoff_notice.py` hook, and `/agent-workflow:pick-up` checks the repository for drift before it starts on the next step.
+
+The prompts in steps 1 and 2 are the shape of a request, not a transcript. What is verified is the behavior of the scripts, hooks and tests, and the install path; [docs/install.md](docs/install.md) says what was run and where.
+
+## Examples
+
+Three examples run against this repository, with the commands and the exit codes that came back, are in [docs/examples.md](docs/examples.md):
+
+- `regression-proof` applied to commit `356016b`: the new test fails on the parent commit (exit 1) and passes on the fix (exit 0), the verdict a pull request's test plan should carry.
+- `skill-collision-audit` on this repository's 21 skills: one pair flagged at 0.32, judged resolved because each description names the other and draws the line.
+- `supervisor` on the pull request that added the docs: what stayed with the supervisor and why, what was delegated to which tier, and the gates with their exit codes.
 
 ## Skills
 
@@ -158,7 +174,11 @@ node --test tests/hooks/
 claude plugin validate .
 ```
 
-The Node tests cover the four opt-in hooks. The Python tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills, and that this README lists every skill and subagent.
+The Node tests cover the four opt-in hooks. The Python tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills and the docs, that this README lists every skill and subagent and names the plugin as the manifests do, and that the changelog has a section for the current version. CI runs both suites on the oldest and the current supported runtimes: Python 3.9 and 3.12, Node 20 and 22.
+
+## Releases
+
+[CHANGELOG.md](CHANGELOG.md) lists what each version changed. [docs/releasing.md](docs/releasing.md) says when the version is bumped, how a release is tagged and how installed users receive it.
 
 ## Credits
 

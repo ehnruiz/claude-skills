@@ -50,6 +50,26 @@ class LayoutTest(unittest.TestCase):
         market = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text())
         self.assertEqual([p["name"] for p in market["plugins"]], [plugin["name"]])
 
+    def test_relative_links_in_docs_resolve(self):
+        docs = [ROOT / "README.md", ROOT / "CHANGELOG.md", ROOT / "hooks/README.md", *sorted((ROOT / "docs").glob("*.md"))]
+        self.assertGreater(len(docs), 3)
+        for path in docs:
+            for target in re.findall(r"\]\(([^)#:]+)\)", path.read_text(encoding="utf-8")):
+                self.assertTrue((path.parent / target).exists(), f"{path}: {target}")
+
+    def test_readme_install_command_names_the_plugin_as_the_manifests_do(self):
+        plugin = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
+        market = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text())
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(f"/plugin marketplace add ehnruiz/claude-skills", readme)
+        self.assertIn(f"/plugin install {plugin['name']}@{market['name']}", readme)
+
+    def test_changelog_has_a_section_for_the_current_version(self):
+        plugin = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        heading = re.compile(rf"^## {re.escape(plugin['version'])} \(", re.M)
+        self.assertTrue(heading.search(changelog), f"CHANGELOG.md has no section for {plugin['version']}")
+
 
 if __name__ == "__main__":
     unittest.main()
