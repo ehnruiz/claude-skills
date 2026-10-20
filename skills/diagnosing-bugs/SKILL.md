@@ -80,8 +80,10 @@ only that stage.
 
 Write the regression test **before** the fix, at a real seam, exercising the actual bug
 pattern. If the only seam available is too shallow to catch it, that is a finding; record it.
-Watch the test fail, apply the fix, watch it pass, then re-run the Phase 1 loop on the
-original scenario. The `regression-proof` skill shows how to prove the test fails without
+Watch the test fail. If you forced the red by editing code or a fixture, `diff` it against an
+untouched copy to prove the edit landed before you trust the failure. An edit that silently
+changed nothing would otherwise pass as a failing test. Then apply the fix, watch it pass, and re-run the
+Phase 1 loop on the original scenario. The `regression-proof` skill shows how to prove the test fails without
 the fix.
 
 ## Phase 6: Clean up

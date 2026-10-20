@@ -39,8 +39,9 @@ some of these, from cheapest to dearest:
 4. **The entry point**: the CLI, the HTTP handler, the UI, driven from outside.
 
 **Test only at pre-agreed seams.** Before writing any test, write down the seams under test and
-confirm them with the user (or, for a subagent, with the ticket). No test is written at an
-unconfirmed seam. Use the lowest seam that reaches the behavior.
+confirm them with the user (or, for a subagent, with the ticket). Give each proposed seam a
+one-line note on what it catches and what it misses, so the choice between seams is not a guess.
+No test is written at an unconfirmed seam. Use the lowest seam that reaches the behavior.
 
 Every heuristic, validator or detector ships with at least one **negative test**: legitimate
 input it must stay quiet on. A false positive is a bug, and the negative test is how a change

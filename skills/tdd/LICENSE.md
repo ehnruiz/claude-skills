@@ -2,7 +2,9 @@
 
 This skill is adapted from Matt Pocock's skills repository
 (https://github.com/mattpocock/skills, read 2026-10-02, v1.2.3), published under the MIT
-License. The adaptation removes project-specific commands, agents and file paths.
+License. The adaptation removes project-specific commands, agents and file paths. One later
+upstream change was ported on 2026-10-19, from `main` at commit `5beb35b` (unreleased after
+v1.3.1).
 
 MIT License
 

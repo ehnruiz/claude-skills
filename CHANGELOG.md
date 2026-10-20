@@ -6,6 +6,16 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+## 1.5.2 (2026-10-19)
+
+### Changed
+
+Three changes ported from Matt Pocock's skills (`main` at `5beb35b`, after v1.3.1):
+
+- `grilling` words each question so "yes" accepts the recommended answer, so agreeing never means answering "no".
+- `tdd` gives each proposed seam a one-line note on what it catches and what it misses.
+- `diagnosing-bugs` has the agent `diff` a forced mutation against an untouched copy before trusting the red, so an edit that changed nothing cannot pass as a failing test.
+
 ## 1.5.1 (2026-10-16, tag `v1.5.1`)
 
 ### Fixed
