@@ -6,6 +6,15 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+## 1.6.0 (2026-10-19)
+
+### Added
+
+Two items adapted from Matt Pocock's skills (`main` at `5beb35b`, after v1.3.1):
+
+- `retro`: a skill you invoke after a coding session. It reads the session, lists what slowed the agent down or let a mistake through, most severe first, and builds the one you pick as a test, check or doc in the project. A new check has to fail on the mistake before it counts. It loads `writing-for-agents` for anything it writes.
+- `git-guardrails.mjs`: an opt-in PreToolUse hook that denies `git push`, `git reset --hard`, `git clean` (except a dry run) and `git branch -D` before they run. It reads the command as shell, so a quoted commit message or a heredoc that mentions `git push` is not blocked. It is not registered in `hooks.json`; `hooks/README.md` has the settings entry.
+
 ## 1.5.2 (2026-10-19)
 
 ### Changed

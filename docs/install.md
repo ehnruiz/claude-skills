@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Skills and subagents | Claude Code | Skills are `SKILL.md` folders and subagents are Markdown files with frontmatter; nothing runs outside Claude Code |
 | `handoff_notice.py` hook, `ticket_lint.py`, `find_collisions.py` | Python 3.9 or newer, `git` on `PATH` | The scripts use `str.removesuffix`, which arrived in 3.9. On Python 3.8 the test suite fails with `AttributeError: 'str' object has no attribute 'removesuffix'` |
-| The four opt-in hooks under `hooks/*.mjs` | Node 20 or newer, `git` on `PATH` | Plain ES modules with no dependencies. `gitleaks` is optional for `commit-secrets` |
+| The five opt-in hooks under `hooks/*.mjs` | Node 20 or newer, `git` on `PATH` | Plain ES modules with no dependencies. `gitleaks` is optional for `commit-secrets` |
 
 Measured on 2026-10-16 on macOS 15 (Darwin 24.6) with Claude Code 2.1.296:
 

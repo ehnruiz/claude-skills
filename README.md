@@ -38,7 +38,7 @@ After the plugin install, `claude plugin list` shows `agent-workflow@ehnruiz` as
 $ python3 hooks/handoff_notice.py --print-dir
 /Users/you/.claude/projects/-Users-you-projects-claude-skills/handoffs
 $ python3 skills/skill-collision-audit/scripts/find_collisions.py skills
-21 skills, 1 overlapping pairs, 0 duplicate names
+22 skills, 1 overlapping pairs, 0 duplicate names
 ...
 ```
 
@@ -72,6 +72,7 @@ Three examples run against this repository, with the commands and the exit codes
 | [`explain-the-number`](skills/explain-the-number/SKILL.md) | Before a measured number is reported or credited to a change, checks the comparison is like-for-like: same population, same measures, same setup, nothing else changed. What did not run is reported as "did not run". |
 | [`research`](skills/research/SKILL.md) | Answers a question from primary sources in one cited Markdown note, written in the background by `researcher`. |
 | [`writing-for-agents`](skills/writing-for-agents/SKILL.md) | How to write skills, `AGENTS.md` and `CLAUDE.md` so an agent follows them the same way every run, and how to prove a new rule red then green in fresh subagents before it ships. |
+| [`retro`](skills/retro/SKILL.md) | Reviews a finished session for what slowed the agent down or let a mistake through, then turns one lesson into a test, check or doc in the project. You invoke it yourself. |
 | [`handoff`](skills/handoff/SKILL.md) | Writes a handoff note at the end of a session: the goal, what is done and how it was verified, decisions, open questions and next steps. You invoke it yourself. |
 | [`pick-up`](skills/pick-up/SKILL.md) | Loads the newest handoff, checks the repository for anything that changed since, and starts on the next step. |
 | [`no-ai-attribution`](skills/no-ai-attribution/SKILL.md) | Removes AI credit lines and AI co-author trailers from commits, PRs, issues, comments and tickets before they are posted. |
@@ -142,10 +143,11 @@ Each subagent's model is set in its file. The `supervisor` skill sends work to t
 | [`handoff_notice.py`](hooks/handoff_notice.py) | SessionStart | Shows the opening of the project's newest handoff note when a session starts, and names `pick-up`. Quiet when there is no note, or when the repository has its own `handoff` skill. |
 | [`config-protection.mjs`](hooks/README.md) | PreToolUse | Opt-in. Blocks edits to an existing lint, type, test, build or CI configuration file. |
 | [`commit-secrets.mjs`](hooks/README.md) | PreToolUse | Opt-in. Scans what a `git commit` would take and denies or asks when it finds a secret. |
+| [`git-guardrails.mjs`](hooks/README.md) | PreToolUse | Opt-in. Blocks `git push`, `git reset --hard`, `git clean` and `git branch -D` before they run. |
 | [`edited-files.mjs`](hooks/README.md) | PostToolUse | Opt-in. Records the files a session edits, for `stop-check.mjs`. |
 | [`stop-check.mjs`](hooks/README.md) | Stop | Opt-in. Runs eslint and the type check on the edited files before a response ends. |
 
-The plugin registers `handoff_notice.py` through [`hooks/hooks.json`](hooks/hooks.json). The four opt-in hooks are not registered: [`hooks/README.md`](hooks/README.md) has the settings snippet for them. With a copy install, add `handoff_notice.py` to `~/.claude/settings.json`:
+The plugin registers `handoff_notice.py` through [`hooks/hooks.json`](hooks/hooks.json). The five opt-in hooks are not registered: [`hooks/README.md`](hooks/README.md) has the settings snippet for them. With a copy install, add `handoff_notice.py` to `~/.claude/settings.json`:
 
 ```json
 {
@@ -184,7 +186,7 @@ node --test tests/hooks/
 claude plugin validate .
 ```
 
-The Node tests cover the four opt-in hooks. The Python tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills and the docs, that this README lists every skill and subagent and names the plugin as the manifests do, and that the changelog has a section for the current version. CI runs both suites on the oldest and the current supported runtimes: Python 3.9 and 3.12, Node 20 and 22.
+The Node tests cover the five opt-in hooks. The Python tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills and the docs, that this README lists every skill and subagent and names the plugin as the manifests do, and that the changelog has a section for the current version. CI runs both suites on the oldest and the current supported runtimes: Python 3.9 and 3.12, Node 20 and 22.
 
 ## Releases
 
@@ -192,7 +194,7 @@ The Node tests cover the four opt-in hooks. The Python tests check the lint scri
 
 ## Credits
 
-The handoff skill grew out of the handoff idea in [Matt Pocock's skills](https://github.com/mattpocock/skills). `grilling`, `tdd`, `diagnosing-bugs`, `research` and `writing-for-agents` are adapted from the same repository under the MIT License; each keeps the notice in its own `LICENSE.md`.
+The handoff skill grew out of the handoff idea in [Matt Pocock's skills](https://github.com/mattpocock/skills). `grilling`, `tdd`, `diagnosing-bugs`, `research`, `writing-for-agents` and `retro` are adapted from the same repository under the MIT License; each keeps the notice in its own `LICENSE.md`. The `git-guardrails.mjs` hook is adapted from its `git-guardrails-claude-code` skill, with the credit in the hook's header comment.
 
 `explain-the-number` follows the principle of the same name in Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT); it keeps the notice in its own `LICENSE.md`. `writing-for-agents/PRESSURE-TESTS.md` rewrites the method of Jesse Vincent's `testing-skills-with-subagents` in [obra/clank](https://github.com/obra/clank); no text is copied, as that repository ships no license file.
 
