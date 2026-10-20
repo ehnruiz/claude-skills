@@ -2,6 +2,10 @@
 
 Skills, subagents and hooks for [Claude Code](https://docs.claude.com/en/docs/claude-code), for engineers who want an agent that proves its work. A supervisor sends each step to the cheapest model that can do it and moves it up a tier after two failures. A gate passes by its exit code. A bug fix ships with a test shown to fail without the fix, and a session ends with a handoff note the next one picks up. The library checks itself: frontmatter, links, scripts, hooks and this README run in CI, and a collision audit keeps skill descriptions from competing.
 
+![The regression-proof recipe on commit 356016b: the new test fails on the code from before the fix (without_fix=1) and passes on the fix (with_fix=0)](docs/media/regression-proof.gif)
+
+The `regression-proof` skill on a real fix from this repository: the new test fails on the code from before the fix and passes with it, so it proves the fix. The recording is shortened: it skips the step that lists which test files the fix changed, and shows only the result lines of each run. [docs/examples.md](docs/examples.md#1-regression-proof-show-that-a-test-fails-without-its-fix) has the full recipe.
+
 ## Install
 
 As a plugin, from inside Claude Code:
