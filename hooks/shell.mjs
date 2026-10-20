@@ -1,5 +1,6 @@
 /**
- * Shell-command tokenizing shared by the hooks that read a Bash command (config-protection, commit-secrets).
+ * Shell-command tokenizing shared by the hooks that read a Bash command (config-protection, commit-secrets,
+ * git-guardrails).
  *
  * Pure string functions, no I/O. They are a heuristic, not a shell parser: they take the command text, remove what is
  * data rather than command (heredoc bodies, quoted strings) and report where the command writes. When in doubt they
@@ -272,7 +273,7 @@ function splitUnquoted(command) {
 }
 
 /** The words of one segment: whitespace separates, quotes group and are removed, a backslash escapes. @param {string} segment */
-function wordsOf(segment) {
+export function wordsOf(segment) {
   const words = [];
   let current = "";
   let started = false;

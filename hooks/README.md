@@ -1,6 +1,6 @@
 # Session hooks
 
-Four hooks for Claude Code sessions in any JavaScript or TypeScript project. They protect configuration files, guard against committing secrets, and check edited code with eslint and the type checker before a response ends. They are plain ES modules with no dependencies and need Node 20 or newer.
+Five hooks for Claude Code sessions. They protect configuration files, guard against committing secrets, block git commands that publish or destroy work, and check edited code with eslint and the type checker before a response ends. `stop-check` needs a JavaScript or TypeScript project; the others work in any git repository. They are plain ES modules with no dependencies and need Node 20 or newer.
 
 They are opt-in per project. The plugin does not register them in `hooks.json`; you add them to your own settings (see "Turning them on"). The one hook the plugin does register, `handoff_notice.py`, is described in the top-level README.
 
@@ -24,6 +24,7 @@ A hook reads an event from stdin as JSON, answers on stdout with a decision, and
 | --- | --- | --- |
 | `config-protection.mjs` | PreToolUse on Edit, Write, MultiEdit, NotebookEdit, Bash | Edits to an existing lint, type, test, build or CI configuration file |
 | `commit-secrets.mjs` | PreToolUse on Bash | A `git commit` whose changes contain a secret |
+| `git-guardrails.mjs` | PreToolUse on Bash | `git push`, `git reset --hard`, `git clean` and `git branch -D` |
 | `edited-files.mjs` | PostToolUse on Edit, Write, MultiEdit | Nothing. It records the files a session edits for the next hook |
 | `stop-check.mjs` | Stop | The end of a response, until the files edited in it pass eslint and the type check |
 
@@ -70,6 +71,21 @@ Before a `git commit` runs, the hook scans what the commit would take: the stage
 
 A git error allows the commit: this hook is never the reason a commit fails.
 
+## git-guardrails
+
+`git push` publishes commits. `git reset --hard`, `git clean` and `git branch -D` throw away work that git cannot bring back. In a project that turns this hook on, the user runs these, and the hook denies them before they run:
+
+- `git push`, every form, dry runs included
+- `git reset --hard`
+- `git clean`, unless it is a dry run (`-n` or `--dry-run`)
+- `git branch -D`, and `git branch -d` with `-f` or `--force`, which mean the same
+
+The command is read as shell rather than searched as text, so a quoted argument (`git commit -m "before git push"`), a heredoc body and a comment never match. It finds git behind its own options (`git -C dir push`), after `sudo`, `env`, `command` and similar wrappers, after `if`, `then` or `do`, inside `$( ... )` and backticks, and inside the string of `bash -c`, `sh -c` and `eval`.
+
+It does not follow git aliases (`git p` after `git config alias.p push`), a heredoc fed to a shell (`bash <<EOF`) or a command built from variables. It guards against a session's mistakes and is not a sandbox. `git checkout .` and `git restore .`, which the upstream version also blocks, are allowed here. To change the list, edit `RULES` in your copy of the hook.
+
+Adapted from Matt Pocock's [git-guardrails-claude-code](https://github.com/mattpocock/skills/tree/5beb35b/skills/misc/git-guardrails-claude-code) (MIT), which does the same with a shell script and `grep`.
+
 ## edited-files and stop-check
 
 `edited-files` appends each edited path to a per-session file under the OS temp directory (`claude-hooks/<session id>.edited`). When the response ends, `stop-check` reads it and keeps every edited file that still exists, is inside the project, is not under `node_modules/`, `.git/`, `dist/`, `build/`, `.next/` or `coverage/`, and has the extension `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts` or `.cts`. With none left, or when nothing was edited, it is silent. It runs the project's own tools from `node_modules/.bin` (never `npx`):
@@ -112,6 +128,12 @@ Add the entries you want to `.claude/settings.local.json` (one project, git-igno
         "hooks": [
           { "type": "command", "command": "node /path/to/claude-skills/hooks/commit-secrets.mjs", "timeout": 60 }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node /path/to/claude-skills/hooks/git-guardrails.mjs", "timeout": 10 }
+        ]
       }
     ],
     "PostToolUse": [
@@ -146,7 +168,12 @@ echo '{"tool_name":"Edit","tool_input":{"file_path":"tsconfig.json"}}' \
   | CLAUDE_PROJECT_DIR=$PWD node /path/to/claude-skills/hooks/config-protection.mjs
 ```
 
-The same event with `src/app.ts` prints nothing.
+The same event with `src/app.ts` prints nothing. This one prints a deny from `git-guardrails`:
+
+```bash
+echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' \
+  | node /path/to/claude-skills/hooks/git-guardrails.mjs
+```
 
 ## Tests
 
@@ -154,4 +181,4 @@ The same event with `src/app.ts` prints nothing.
 node --test tests/hooks/
 ```
 
-The suites use Node's built-in runner, so there is nothing to install. Each one runs the script as Claude Code does, with the event as JSON on stdin (`tests/hooks/hookRun.mjs`). The `commit-secrets` tests start git in temporary repositories, and the gitleaks cases are skipped when `gitleaks` is not installed. The `stop-check` tests use small stand-ins for eslint, `tsc` and `next`, not the real tools. `tests/hooks/index.js` only exists so the directory form of the command works on Node 22 as well as Node 20.
+The suites use Node's built-in runner, so there is nothing to install. Each one runs the script as Claude Code does, with the event as JSON on stdin (`tests/hooks/hookRun.mjs`). The `commit-secrets` tests start git in temporary repositories, and the gitleaks cases are skipped when `gitleaks` is not installed. The `git-guardrails` tests include an event written to stdin in two parts with a pause between them. The `stop-check` tests use small stand-ins for eslint, `tsc` and `next`, not the real tools. `tests/hooks/index.js` only exists so the directory form of the command works on Node 22 as well as Node 20.
