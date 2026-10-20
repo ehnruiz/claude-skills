@@ -5,13 +5,15 @@ const fs = require('fs');
 const path = require('path');
 
 const out = process.argv[2];
+if (!out) { console.error('usage: node render-demo.cjs <framesDir>'); process.exit(2); }
 fs.mkdirSync(out, { recursive: true });
 
 // Each step: kind 'cmd' is typed, 'out' appears at once, 'note' is a dim comment, 'pause' holds.
-// The output lines are the real result lines from running the recipe on commit 356016b (2026-10-20).
+// The output lines come from a real run of the recipe on commit 356016b (2026-10-20), shortened as docs/media/README.md says.
 const steps = [
-  { kind: 'note', text: '# 1. The code from before the fix, with only the fix\'s new test copied in' },
-  { kind: 'cmd', text: 'git worktree add --detach $S/proof 356016b^' },
+  { kind: 'cmd', text: 'S=$(mktemp -d)' },
+  { kind: 'note', text: '# 1. The code from before the fix, with only the fix\'s test file copied in' },
+  { kind: 'cmd', text: 'git worktree add --detach $S/proof 356016b~1' },
   { kind: 'cmd', text: 'git -C $S/proof checkout 356016b -- tests/test_handoff_notice.py' },
   { kind: 'cmd', text: '(cd $S/proof && python3 -m unittest tests.test_handoff_notice); echo "without_fix=$?"' },
   { kind: 'out', cls: 'red', text: 'FAIL: test_a_trailing_space_in_a_submodule_path_is_kept' },
@@ -27,14 +29,14 @@ const steps = [
   { kind: 'out', cls: 'green', text: 'OK' },
   { kind: 'out', cls: 'green b', text: 'with_fix=0' },
   { kind: 'pause', ms: 600 },
-  { kind: 'verdict', text: 'Fails without the fix, passes with it: the test proves the fix.' },
+  { kind: 'verdict', text: 'Fails without the fix and passes with it, so the test proves the fix.' },
   { kind: 'pause', ms: 4000 },
 ];
 
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   * { box-sizing: border-box; margin: 0; }
-  body { background: #0d1117; width: 960px; height: 500px; font: 15px/1.55 Menlo, "SF Mono", monospace; color: #c9d1d9; }
-  .win { margin: 16px; height: 468px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; overflow: hidden; }
+  body { background: #0d1117; width: 960px; height: 524px; font: 15px/1.55 Menlo, "SF Mono", monospace; color: #c9d1d9; }
+  .win { margin: 16px; height: 492px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; overflow: hidden; }
   .bar { height: 34px; background: #21262d; display: flex; align-items: center; padding: 0 14px; gap: 8px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; }
   .title { flex: 1; text-align: center; color: #8b949e; font-size: 13px; margin-right: 52px; }
@@ -51,7 +53,7 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, 
 
 (async () => {
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 960, height: 500 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: { width: 960, height: 524 }, deviceScaleFactor: 1 });
   await page.setContent(html);
   const lines = []; // rendered HTML lines so far
   const frames = []; // { file, ms }

@@ -7,7 +7,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-DOCS = [ROOT / "README.md", ROOT / "CHANGELOG.md", ROOT / "hooks/README.md", *sorted((ROOT / "docs").glob("*.md"))]
+DOCS = [ROOT / "README.md", ROOT / "CHANGELOG.md", ROOT / "hooks/README.md", *sorted((ROOT / "docs").rglob("*.md"))]
 
 
 def frontmatter(path):

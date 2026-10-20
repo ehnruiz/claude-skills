@@ -13,7 +13,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   .row { font-size: 27px; color: #c9d1d9; display: flex; gap: 16px; align-items: baseline; }
   .row b { color: #7ee787; font-weight: 600; min-width: 290px; }
   .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 24px; color: #8b949e; }
-  .cmd { white-space: nowrap; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 16px; color: #e6edf3; }
+  .cmd { line-height: 1.5; white-space: nowrap; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 16px; color: #e6edf3; }
   .cmd span { color: #7ee787; }
 </style></head><body>
   <div class="kicker mono">github.com/ehnruiz/claude-skills</div>
@@ -24,8 +24,10 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     <div class="row"><b class="mono">regression-proof</b><span>shows that a fix's new test fails without the fix</span></div>
     <div class="row"><b class="mono">handoff</b><span>leaves a note the next session picks up</span></div>
   </div>
-  <div class="foot"><span class="cmd mono"><span>/plugin</span> marketplace add ehnruiz/claude-skills</span></div>
+  <div class="foot"><span class="cmd mono"><span>/plugin</span> marketplace add ehnruiz/claude-skills<br><span>/plugin</span> install agent-workflow@ehnruiz</span></div>
 </body></html>`;
+
+if (!process.argv[2]) { console.error('usage: node render-preview.cjs <out.png>'); process.exit(2); }
 
 (async () => {
   const browser = await chromium.launch();

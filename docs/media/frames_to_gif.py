@@ -1,6 +1,6 @@
 """Assemble the PNG frames written by render-demo.cjs into one looping GIF.
 
-Usage: python3 frames_to_gif.py <framesDir> <out.gif> (needs Pillow)
+Usage: python3 frames_to_gif.py <framesDir> <out.gif> (needs Pillow 9.1+)
 """
 import json
 import sys

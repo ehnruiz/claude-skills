@@ -4,7 +4,7 @@ Skills, subagents and hooks for [Claude Code](https://docs.claude.com/en/docs/cl
 
 ![The regression-proof recipe on commit 356016b: the new test fails on the code from before the fix (without_fix=1) and passes on the fix (with_fix=0)](docs/media/regression-proof.gif)
 
-The `regression-proof` skill on a real fix from this repository: the new test fails on the code from before the fix and passes with it, so it proves the fix. The output is trimmed to the result lines; [docs/examples.md](docs/examples.md#1-regression-proof-show-that-a-test-fails-without-its-fix) has the full recipe.
+The `regression-proof` skill on a real fix from this repository: the new test fails on the code from before the fix and passes with it, so it proves the fix. The recording is shortened: it skips the step that lists which test files the fix changed, and shows only the result lines of each run. [docs/examples.md](docs/examples.md#1-regression-proof-show-that-a-test-fails-without-its-fix) has the full recipe.
 
 ## Install
 
