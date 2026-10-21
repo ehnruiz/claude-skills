@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import importlib.util
 import io
 import pathlib
@@ -25,6 +26,45 @@ LIBRARY = pathlib.Path(_TMP.name) / "library"
 for _rel, _text in FIXTURES.items():
     (LIBRARY / _rel).parent.mkdir(parents=True, exist_ok=True)
     (LIBRARY / _rel).write_text(_text, encoding="utf-8")
+
+
+# Pairs judged with the skill's step 3 and found resolved: each description draws the line.
+# Pointing two descriptions at each other raises their shared-word score, so a resolved pair
+# can sit over the threshold. Each entry keeps a hash of both descriptions, so editing either
+# one reopens the review, and the requests it was judged with, mapped to the skill each should reach.
+REVIEWED = {
+    frozenset({"explain-the-number", "regression-proof"}): {
+        "hash": "f41f0357b23c",
+        "requests": {
+            "did the tests pass?": "regression-proof",
+            "can I say the change improved the Lighthouse score?": "explain-the-number",
+        },
+    },
+}
+
+
+def description_hash(skills, pair):
+    by_name = {s["name"]: s["description"] for s in skills}
+    text = "\n".join(f"{name}\n{by_name[name]}" for name in sorted(pair))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def stale_reviews(skills, reviewed):
+    """Reviewed pairs whose skills are gone or whose descriptions changed since the review."""
+    names = {s["name"] for s in skills}
+    problems = []
+    for pair, review in reviewed.items():
+        a, b = sorted(pair)
+        if not pair <= names:
+            problems.append(f"{a} <-> {b}: a skill no longer exists; remove the entry")
+            continue
+        current = description_hash(skills, pair)
+        if current != review["hash"]:
+            problems.append(
+                f"{a} <-> {b}: a description changed since the review; judge the pair again "
+                f"with the skill's step 3, then set its hash to {current}"
+            )
+    return problems
 
 
 def run(*args):
@@ -85,18 +125,34 @@ class FindCollisionsTest(unittest.TestCase):
         self.assertEqual(run(LIBRARY / "missing"), 2)
 
     def test_every_overlapping_pair_in_this_repository_has_been_reviewed(self):
-        # Pairs judged with the skill's step 3 and found resolved: each description draws the line.
-        # Pointing two descriptions at each other raises their shared-word score, so a resolved pair
-        # can sit over the threshold. A new pair fails here until someone judges it, fixes the
-        # descriptions or adds it with a reason.
-        reviewed = {
-            frozenset({"explain-the-number", "regression-proof"}),  # a measured number vs. gates and tests
-        }
+        # A new pair fails here until someone judges it, fixes the descriptions or adds it to REVIEWED.
         skills = find_collisions.load_skills([ROOT / "skills"])
         found = {frozenset({p["a"]["name"], p["b"]["name"]}) for p in find_collisions.find_pairs(skills, 0.25)}
-        self.assertEqual(found - reviewed, set(), "unreviewed overlapping skills; run the skill-collision-audit skill")
+        self.assertEqual(found - set(REVIEWED), set(), "unreviewed overlapping skills; run the skill-collision-audit skill")
         self.assertEqual(find_collisions.find_duplicate_names(skills), {})
 
+    def test_no_reviewed_pair_has_changed_since_its_review(self):
+        # Deleting the line one description draws lowers the shared-word score, so the pair can drop
+        # under the threshold and leave the test above green. The hash catches that edit.
+        skills = find_collisions.load_skills([ROOT / "skills"])
+        self.assertEqual(stale_reviews(skills, REVIEWED), [])
+
+    def test_each_reviewed_request_reaches_a_skill_of_its_pair(self):
+        for pair, review in REVIEWED.items():
+            for request, skill in review["requests"].items():
+                self.assertIn(skill, pair, request)
+
+    def test_an_edited_or_missing_description_reopens_a_review(self):
+        skills = [
+            {"name": "x", "path": "x", "description": "Plan this month's posts. For a single post, use y."},
+            {"name": "y", "path": "y", "description": "Write one post. For a month of posts, use x."},
+        ]
+        pair = frozenset({"x", "y"})
+        reviewed = {pair: {"hash": description_hash(skills, pair), "requests": {}}}
+        self.assertEqual(stale_reviews(skills, reviewed), [])
+        skills[1]["description"] = "Write one post."
+        self.assertIn("description changed", stale_reviews(skills, reviewed)[0])
+        self.assertIn("no longer exists", stale_reviews(skills[:1], reviewed)[0])
 
 if __name__ == "__main__":
     unittest.main()

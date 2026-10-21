@@ -6,6 +6,10 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+### Changed
+
+- The collision test keeps a hash of both descriptions for each reviewed pair, with the requests the pair was judged on. Editing either description fails the test until someone judges the pair again. Before, deleting the line a description draws could lower the pair's score under the threshold and leave the test green.
+
 ## 1.6.0 (2026-10-20, tag `v1.6.0`)
 
 ### Added
