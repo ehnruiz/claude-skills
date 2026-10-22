@@ -6,7 +6,7 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
-## 1.7.0 (2026-10-21)
+## 1.7.0 (2026-10-22)
 
 ### Added
 
@@ -20,6 +20,7 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 ### Changed
 
 - `supervisor`: a spawned ticket is not finished until its report is read, and the answer to the user comes after the last worker reports.
+- The collision test keeps a hash of both descriptions for each reviewed pair, with the requests the pair was judged on. Editing either description fails the test until someone judges the pair again. Before, deleting the line a description draws could lower the pair's score under the threshold and leave the test green.
 
 ### Fixed
 
