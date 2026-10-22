@@ -144,21 +144,28 @@ Each subagent's model is set in its file. The `supervisor` skill sends work to t
 
 | Hook | Event | What it does |
 | --- | --- | --- |
-| [`handoff_notice.py`](hooks/handoff_notice.py) | SessionStart | Shows the opening of the project's newest handoff note when a session starts, and names `pick-up`. Quiet when there is no note, or when the repository has its own `handoff` skill. |
+| [`handoff_notice.py`](hooks/handoff_notice.py) | SessionStart | Shows the opening of the project's newest handoff note when a session starts, and names `pick-up`. A resumed or compacted session also gets its last compaction line: the time, the branch and the files that were uncommitted. Quiet when there is neither, or when the repository has its own `handoff` skill. |
+| [`pre_compact.py`](hooks/pre_compact.py) | PreCompact | Logs each compaction (time, session, trigger, branch, uncommitted files) beside the handoff notes, for `handoff_notice.py` to report when the session continues. Prints nothing. |
 | [`config-protection.mjs`](hooks/README.md) | PreToolUse | Opt-in. Blocks edits to an existing lint, type, test, build or CI configuration file. |
 | [`commit-secrets.mjs`](hooks/README.md) | PreToolUse | Opt-in. Scans what a `git commit` would take and denies or asks when it finds a secret. |
 | [`git-guardrails.mjs`](hooks/README.md) | PreToolUse | Opt-in. Blocks `git push`, `git reset --hard`, `git clean` and `git branch -D` before they run. |
+| [`loose-files.mjs`](hooks/README.md) | PreToolUse | Opt-in. Blocks creating a new document (Markdown, HTML, a spreadsheet, an image, an archive) in the repository root. |
 | [`edited-files.mjs`](hooks/README.md) | PostToolUse | Opt-in. Records the files a session edits, for `stop-check.mjs`. |
 | [`stop-check.mjs`](hooks/README.md) | Stop | Opt-in. Runs eslint and the type check on the edited files before a response ends. |
+| [`supervisor-reminder.mjs`](hooks/README.md) | UserPromptSubmit | Opt-in. On the first plain prompt of a session, reminds the model to route a multi-step task through `supervisor`. |
+| [`cloud-browsers.mjs`](hooks/README.md) | SessionStart | Opt-in. In a Claude Code cloud session, installs the Chromium builds the project's Playwright expects, from a host the cloud network allows. |
 
-The plugin registers `handoff_notice.py` through [`hooks/hooks.json`](hooks/hooks.json). The five opt-in hooks are not registered: [`hooks/README.md`](hooks/README.md) has the settings snippet for them. With a copy install, add `handoff_notice.py` to `~/.claude/settings.json`:
+The plugin registers `handoff_notice.py` and `pre_compact.py` through [`hooks/hooks.json`](hooks/hooks.json). The opt-in hooks are not registered: [`hooks/README.md`](hooks/README.md) has the settings snippet for them. With a copy install, add the two Python hooks to `~/.claude/settings.json`:
 
 ```json
 {
   "hooks": {
     "SessionStart": [
-      { "matcher": "startup|clear|compact",
+      { "matcher": "startup|resume|clear|compact",
         "hooks": [{ "type": "command", "command": "python3 /path/to/claude-skills/hooks/handoff_notice.py", "timeout": 10 }] }
+    ],
+    "PreCompact": [
+      { "hooks": [{ "type": "command", "command": "python3 /path/to/claude-skills/hooks/pre_compact.py", "timeout": 10 }] }
     ]
   }
 }
@@ -190,7 +197,7 @@ node --test tests/hooks/
 claude plugin validate .
 ```
 
-The Node tests cover the five opt-in hooks. The Python tests check the lint script, the collision script, the handoff hook, each skill's and subagent's frontmatter, links inside the skills and the docs, that this README lists every skill and subagent and names the plugin as the manifests do, and that the changelog has a section for the current version. CI runs both suites on the oldest and the current supported runtimes: Python 3.9 and 3.12, Node 20 and 22.
+The Node tests cover the eight opt-in hooks. The Python tests check the lint script, the collision script, the handoff and pre-compact hooks, each skill's and subagent's frontmatter, links inside the skills and the docs, that this README lists every skill and subagent and names the plugin as the manifests do, and that the changelog has a section for the current version. CI runs both suites on the oldest and the current supported runtimes: Python 3.9 and 3.12, Node 20 and 22.
 
 ## Releases
 

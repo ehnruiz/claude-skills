@@ -124,5 +124,87 @@ class HandoffNoticeTest(unittest.TestCase):
         self.assertEqual(hook.project_slug(pathlib.Path("/Users/me/projects/my.repo_v2")),
                          "-Users-me-projects-my-repo-v2")
 
+    def log_compaction(self, session="s1", when="2026-10-20T14:03:00.000Z", branch="main", count="2", paths="a.txt b.txt"):
+        self.notes.mkdir(parents=True, exist_ok=True)
+        with open(self.notes / "compactions.log", "a", encoding="utf-8") as log:
+            log.write("\t".join([when, session, "auto", branch, count, paths]) + "\n")
+
+    def resumed(self, source="resume", session="s1"):
+        return hook.notice({"cwd": str(self.repo), "source": source, "session_id": session}, self.home)
+
+    def test_resume_and_compact_show_the_sessions_last_compaction_without_a_note(self):
+        self.log_compaction()
+        for source in ("resume", "compact"):
+            self.assertEqual(self.resumed(source),
+                             "Last compaction: 2026-10-20T14:03:00.000Z, branch main, 2 dirty files: a.txt b.txt.")
+
+    def test_the_last_compaction_follows_the_note(self):
+        self.write("2026-01-02-new.md", "ship it")
+        self.log_compaction()
+        context = self.resumed()
+        self.assertIn("ship it", context)
+        self.assertTrue(context.endswith("Last compaction: 2026-10-20T14:03:00.000Z, branch main, 2 dirty files: a.txt b.txt."))
+
+    def test_the_latest_line_for_the_session_wins_and_another_sessions_line_is_not_shown(self):
+        self.log_compaction(when="2026-10-20T10:00:00.000Z", branch="old")
+        self.log_compaction(session="s2", when="2026-10-20T11:00:00.000Z", branch="other")
+        self.log_compaction(when="2026-10-20T12:00:00.000Z", branch="new")
+        self.log_compaction(session="s2", when="2026-10-20T13:00:00.000Z", branch="other-again")
+        context = self.resumed()
+        self.assertIn("2026-10-20T12:00:00.000Z, branch new", context)
+        self.assertNotIn("other", context)
+        self.assertNotIn("branch old", context)
+
+    def test_a_session_with_no_line_gets_nothing_extra(self):
+        self.log_compaction(session="s2")
+        self.assertIsNone(self.resumed(session="s1"))
+        self.write("2026-01-02-new.md", "ship it")
+        self.assertNotIn("Last compaction", self.resumed(session="s1"))
+
+    def test_startup_and_clear_do_not_show_the_compaction(self):
+        self.log_compaction()
+        self.write("2026-01-02-new.md", "ship it")
+        for source in ("startup", "clear", None):
+            event = {"cwd": str(self.repo), "session_id": "s1"}
+            if source:
+                event["source"] = source
+            self.assertNotIn("Last compaction", hook.notice(event, self.home))
+
+    def test_a_clean_tree_reads_as_zero_dirty_files(self):
+        self.log_compaction(count="0", paths="")
+        self.assertEqual(self.resumed(), "Last compaction: 2026-10-20T14:03:00.000Z, branch main, 0 dirty files.")
+
+    def test_the_compaction_line_comes_off_the_preview_budget(self):
+        self.write("2026-01-02-long.md", "Q" * (hook.PREVIEW_CHARS * 2))
+        self.log_compaction()
+        line = "Last compaction: 2026-10-20T14:03:00.000Z, branch main, 2 dirty files: a.txt b.txt."
+        context = self.resumed()
+        shown = context.count("Q")
+        self.assertLessEqual(shown + len(line), hook.PREVIEW_CHARS)
+        self.assertGreater(shown + len(line), hook.PREVIEW_CHARS - 10)
+        self.assertIn("\n[...]", context)
+        self.assertIn(line, context)
+        self.assertIn("pick-up", context)
+
+    def test_a_compaction_line_longer_than_the_budget_leaves_no_preview(self):
+        self.write("2026-01-02-long.md", "Q" * (hook.PREVIEW_CHARS * 10))
+        self.log_compaction(count="10", paths=" ".join("p" * 200 for _ in range(10)))
+        context = self.resumed()
+        self.assertEqual(context.count("Q"), 0)
+        self.assertIn("pick-up", context)
+
+    def test_a_malformed_log_line_is_skipped(self):
+        self.notes.mkdir(parents=True)
+        (self.notes / "compactions.log").write_text("garbage\n\n")
+        self.assertIsNone(self.resumed())
+
+    def test_quiet_about_compactions_when_the_repository_has_its_own_handoff_skill(self):
+        self.log_compaction()
+        (self.repo / ".claude" / "skills" / "handoff").mkdir(parents=True)
+        (self.repo / ".claude" / "skills" / "handoff" / "SKILL.md").write_text("own")
+        os.environ["CLAUDE_PROJECT_DIR"] = str(self.repo)
+        self.assertIsNone(self.resumed())
+
+
 if __name__ == "__main__":
     unittest.main()

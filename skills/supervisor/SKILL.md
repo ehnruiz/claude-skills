@@ -32,7 +32,7 @@ A subagent starts cold and has to re-read the repository. Keep the work when it 
 1. **Clarify.** Settle open decisions with the user before writing tickets. Facts go to a `scout`, decisions to the user. For a plan with several open decisions, use `grilling`.
 2. **Scout.** One `scout` per unknown, in parallel. Each returns `path:line` pointers, not file contents. If a report leaves the question open, send the same scout a follow-up that says why you asked.
 3. **Plan.** Write each ticket: the behavior wanted, where it goes, the command that proves it, the files involved, and what must stay unchanged. Mark which tickets are independent.
-4. **Build.** One `implementer` or `tester` per ticket. Parallel tickets each get their own git worktree; merge their branches yourself.
+4. **Build.** One `implementer` or `tester` per ticket. Parallel tickets each get their own git worktree; merge their branches yourself. A spawned ticket is not a finished one: read every worker's report before the turn ends, and answer the user after the last report, never while a worker is still running.
 5. **Verify.** Run the type check, lint and tests yourself, one command at a time, and judge each by its exit code. A worker saying "tests pass" is a claim until you have run them. `regression-proof` covers how, and how to show a fix's test fails without the fix.
 6. **Review.** Send the diff to `reviewer`. Fix what it finds, then verify again.
 7. **Ship.** Commit with a message that explains why. Open the pull request only when the user asked for one.

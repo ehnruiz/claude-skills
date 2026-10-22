@@ -10,6 +10,14 @@
  * 2, an unreadable report, findings that map to no added line) runs the pattern scan instead. A gitleaks finding denies the commit, a pattern finding asks
  * the user. Findings name the rule and the `file:line`, never the value.
  *
+ * During a merge (`MERGE_HEAD` exists) the index holds every file the merged-in branch brought, so a finding whose line
+ * the merged-in commit's version of the same file already holds is dropped: it is already on that branch, and the
+ * merge does not add it. The comparison uses the finding's own line text, never its `file:line`, which two composed
+ * diffs can share. A line in neither parent (a conflict resolution, an edit made during the merge) is still scanned. A
+ * gitleaks finding that spans lines (a private key) is never dropped, because its first line can match while its body
+ * differs; a finding gitleaks puts on one line is compared by that line. The pattern scan knows no span, so it never
+ * drops a private-key header.
+ *
  * The composed text is capped (4 MB, 400 untracked files; `CLAUDE_HOOK_MAX_BYTES` and `CLAUDE_HOOK_MAX_FILES` override): the
  * staged and unstaged diffs go in first, then untracked files in path order until the cap. What does not fit is not
  * scanned, and the hook asks the user and says how much was left out, because a hook killed by its timeout allows the
@@ -310,9 +318,9 @@ const trackedIn = (repo) => (file) =>
 
 /** @param {string} repo @returns {(dir: string) => boolean} whether `dir` is in the repository of `repo`; same test `collectText` applies to an add */
 function sameRepoAs(repo) {
-  const commitTop = git(repo, ["rev-parse", "--show-toplevel"]).trim();
+  const commitTop = git(repo, ["rev-parse", "--show-toplevel"]).replace(/\r?\n$/, "");
   return (dir) => {
-    const top = git(dir, ["rev-parse", "--show-toplevel"]).trim();
+    const top = git(dir, ["rev-parse", "--show-toplevel"]).replace(/\r?\n$/, "");
     return Boolean(top) && (!commitTop || top === commitTop);
   };
 }
@@ -422,7 +430,7 @@ function addedLines(diffText) {
     if (text.startsWith("diff --git ")) {
       inHunk = false;
     } else if (!inHunk && text.startsWith("+++ ")) {
-      file = text.slice(4).replace(/^b\//, "");
+      file = text.slice(4).replace(/\t$/, "").replace(/^b\//, ""); // a path with spaces ends in a tab
     } else if (text.startsWith("@@")) {
       inHunk = true;
       const m = /\+(\d+)/.exec(text);
@@ -438,16 +446,25 @@ function addedLines(diffText) {
 }
 
 /**
+ * Findings on the added lines of a unified diff (`-U0` or more context), each with the text of its line.
+ * @param {string} diffText
+ * @returns {{ name: string, file: string, line: number, text: string }[]}
+ */
+function scanLines(diffText) {
+  const findings = [];
+  for (const { file, line, text } of addedLines(diffText)) {
+    for (const [name, re] of PATTERNS) if (re.test(text)) findings.push({ name, file, line, text });
+  }
+  return findings;
+}
+
+/**
  * Findings on the added lines of a unified diff (`-U0` or more context).
  * @param {string} diffText
  * @returns {{ name: string, file: string, line: number }[]}
  */
 export function scanDiff(diffText) {
-  const findings = [];
-  for (const { file, line, text } of addedLines(diffText)) {
-    for (const [name, re] of PATTERNS) if (re.test(text)) findings.push({ name, file, line });
-  }
-  return findings;
+  return scanLines(diffText).map(({ name, file, line }) => ({ name, file, line }));
 }
 
 /**
@@ -473,6 +490,66 @@ export function indexDiff(diffText) {
   return index;
 }
 
+/**
+ * The commits a merge in progress brings in (`MERGE_HEAD`, one per line for an octopus merge); empty outside a merge.
+ * @param {string} repo
+ * @returns {string[]}
+ */
+function mergeHeads(repo) {
+  const file = git(repo, ["rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD"]).trim();
+  if (!file) return [];
+  try {
+    return readFileSync(file, "utf8")
+      .split(/\s+/)
+      .filter((sha) => /^[0-9a-f]{40,64}$/.test(sha));
+  } catch {
+    return [];
+  }
+}
+
+/** The first line of a private key: the rest of the key follows on later lines. */
+const KEY_HEADER = /-----BEGIN [A-Z0-9 _-]*PRIVATE KEY/;
+
+/**
+ * Whether a finding is on a line a merged-in commit already holds in the same file, so the merge does not add it. A
+ * finding gitleaks reports across lines (`multiline` true) is never inherited: one matching line does not prove the
+ * whole secret is the merged-in one. When the span is unknown (`multiline` undefined: the pattern scan), a private-key
+ * header is never inherited either; when gitleaks says the finding sits on one line, that line's text is enough.
+ * @param {(file: string) => Set<string>} linesIn the lines of a file across the merged-in commits
+ * @returns {(finding: { file: string, text: string, multiline?: boolean }) => boolean}
+ */
+export function inheritedFrom(linesIn) {
+  return ({ file, text, multiline }) => {
+    if (multiline === true) return false;
+    if (multiline === undefined && KEY_HEADER.test(text)) return false;
+    return linesIn(file).has(text.replace(/\r$/, ""));
+  };
+}
+
+/**
+ * The lines of each file in the merged-in commits of a merge in progress, read once per file; null outside a merge.
+ * @param {string} repo
+ * @returns {((file: string) => Set<string>) | null}
+ */
+function mergedInLines(repo) {
+  const heads = mergeHeads(repo);
+  if (heads.length === 0) return null;
+  // only the newline goes: a trim would take a space that ends the checkout's path
+  const top = git(repo, ["rev-parse", "--show-toplevel"]).replace(/\r?\n$/, "") || repo;
+  /** @type {Map<string, Set<string>>} */
+  const cache = new Map();
+  return (file) => {
+    let lines = cache.get(file);
+    if (!lines) {
+      lines = new Set();
+      for (const sha of heads)
+        for (const l of git(top, ["show", `${sha}:${file}`]).split(/\r?\n/)) lines.add(l);
+      cache.set(file, lines);
+    }
+    return lines;
+  };
+}
+
 /** @param {{ name: string, file: string, line: number }[]} findings */
 const listFindings = (findings) =>
   findings.map((f) => `${f.name} in ${f.file}:${f.line}`).join("; ");
@@ -481,7 +558,9 @@ const gitleaksBin = () => process.env.CLAUDE_HOOK_GITLEAKS_BIN || "gitleaks";
 
 /**
  * @param {string} text the diff text, piped to `gitleaks stdin`
- * @returns {{ status: 'clean' } | { status: 'error' } | { status: 'unmapped' } | { status: 'found', found: { rule: string, file: string, line: number }[] }}
+ * @returns {{ status: 'clean' } | { status: 'error' } | { status: 'unmapped' } | { status: 'found', found: { rule: string, file: string, line: number, text: string, multiline: boolean }[], unmapped: boolean }}
+ *   `multiline` is whether gitleaks put the finding across lines (`EndLine` past `StartLine`); `unmapped` whether the
+ *   report also held findings that fall on no added line
  *   `error` for anything but exit 0 or 2 and a readable report, and `unmapped` for findings that fall on no added line:
  *   the caller runs the patterns for both
  */
@@ -510,20 +589,26 @@ function gitleaksScan(text) {
     if (result.status !== 2) return { status: "error" };
     const parsed = JSON.parse(readFileSync(report, "utf8"));
     if (!Array.isArray(parsed)) return { status: "error" };
-    const index = indexDiff(text);
+    const index = new Map(addedLines(text).map((a) => [a.index, a]));
     const found = [];
     const seen = new Set();
+    let mapped = 0;
     for (const f of parsed) {
-      const where = index.get(Number(f.StartLine ?? 0));
-      if (!where) continue; // a removed line or a header: taking a secret out is not a leak
+      const start = Number(f.StartLine ?? 0);
+      const at = index.get(start);
+      if (!at) continue; // a removed line or a header: taking a secret out is not a leak
+      mapped++;
       const rule = String(f.RuleID ?? "secret");
-      const key = `${rule}\0${where.file}\0${where.line}`;
+      // the text is part of the key: an inherited line and a new secret can share a file:line across two diffs
+      const key = `${rule}\0${at.file}\0${at.line}\0${at.text}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      found.push({ rule, ...where });
+      const multiline = Number(f.EndLine ?? start) > start;
+      found.push({ rule, file: at.file, line: at.line, text: at.text, multiline });
     }
-    if (found.length > 0) return { status: "found", found };
-    return { status: parsed.length > 0 ? "unmapped" : "clean" };
+    const unmapped = mapped < parsed.length;
+    if (found.length > 0) return { status: "found", found, unmapped };
+    return { status: unmapped ? "unmapped" : "clean" };
   } catch {
     return { status: "error" };
   } finally {
@@ -538,12 +623,16 @@ function gitleaksScan(text) {
  */
 function git(repo, args) {
   try {
-    return execFileSync("git", ["-c", "core.quotepath=off", ...args], {
-      cwd: repo,
-      encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+    return execFileSync(
+      "git",
+      ["-c", "core.quotepath=off", "-c", "diff.noprefix=false", "-c", "diff.mnemonicPrefix=false", ...args],
+      {
+        cwd: repo,
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
   } catch {
     return "";
   }
@@ -603,11 +692,11 @@ function collectText(repo, plan) {
   const addDiffs = [];
   /** @type {Map<string, string>} absolute path to the path git reports (relative to its repository root) */
   const names = new Map();
-  const commitTop = git(repo, ["rev-parse", "--show-toplevel"]).trim();
+  const commitTop = git(repo, ["rev-parse", "--show-toplevel"]).replace(/\r?\n$/, "");
   for (const add of plan.adds) {
     // each add runs in the directory in force where it stands in the chain; its paths resolve there. An add in
     // another repository (`git -C /other add . && git commit`) stages nothing for this commit and is left out.
-    const top = git(add.dir, ["rev-parse", "--show-toplevel"]).trim();
+    const top = git(add.dir, ["rev-parse", "--show-toplevel"]).replace(/\r?\n$/, "");
     if (!top || (commitTop && top !== commitTop)) continue;
     addDiffs.push(git(add.dir, [...diff, "--", ...add.paths]));
     if (add.trackedOnly) continue;
@@ -706,19 +795,27 @@ function main() {
       : "") + same;
   if (!text.trim() && !note) return;
 
+  const linesIn = mergedInLines(repo);
+  const inherited = linesIn ? inheritedFrom(linesIn) : () => false;
+  /** @param {{ file: string, text: string, multiline?: boolean }} f */
+  const added = (f) => !inherited(f);
+
   let clean = false;
   if (text.trim() && process.env.CLAUDE_HOOK_GITLEAKS !== "off" && gitleaksOnPath()) {
     const result = gitleaksScan(text);
-    if (result.status === "found") {
+    const found = result.status === "found" ? result.found.filter(added) : [];
+    if (found.length > 0) {
       deny(
-        `Blocked by the commit-secrets hook (gitleaks): ${result.found.map((f) => `${f.rule} in ${f.file}:${f.line}`).join("; ")}. ${CLOSING}${note}`,
+        `Blocked by the commit-secrets hook (gitleaks): ${found.map((f) => `${f.rule} in ${f.file}:${f.line}`).join("; ")}. ${CLOSING}${note}`,
       );
       return;
     }
-    clean = result.status === "clean"; // on 'error' or 'unmapped' the patterns run instead
+    // on 'error' or 'unmapped' the patterns run instead; findings that were all inherited from a merge are clean,
+    // unless the report also held findings that fell on no added line
+    clean = result.status === "clean" || (result.status === "found" && !result.unmapped);
   }
 
-  const findings = clean ? [] : scanDiff(text);
+  const findings = clean ? [] : scanLines(text).filter(added);
   if (findings.length > 0)
     ask(
       `The commit-secrets hook found what looks like a secret in the changes to commit: ${listFindings(findings)}. ${CLOSING}${note}`,

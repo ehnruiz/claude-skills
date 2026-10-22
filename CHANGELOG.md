@@ -6,6 +6,25 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+## 1.7.0 (2026-10-21)
+
+### Added
+
+- `supervisor-reminder.mjs`: an opt-in UserPromptSubmit hook. On the first plain prompt of a session it adds one line to the context saying to route a multi-step task through `supervisor`. It fires once per session, leaves slash commands alone, and never fails the prompt.
+- `loose-files.mjs`: an opt-in PreToolUse hook that denies creating a new document (Markdown, HTML, a spreadsheet, an image, an archive) at the repository root, by Write or by a shell redirection, `tee`, `cp` or `mv`. Existing files and the usual root files are allowed, and a project allows more names in `.claude/root-files`.
+- `cloud-browsers.mjs`: an opt-in async SessionStart hook for Claude Code cloud sessions. In a project that declares Playwright 1.57 or newer, it runs `npm ci` when Playwright is not installed yet and installs the Chromium builds Playwright expects from Google's Chrome for Testing mirror, since the cloud network blocks Playwright's own download host.
+- `pre_compact.py`: a PreCompact hook the plugin registers. It logs each compaction (time, session, trigger, branch, uncommitted files) beside the handoff notes, and `handoff_notice.py` now shows a resumed or compacted session its last compaction line, with or without a handoff note. The SessionStart registration adds `resume` to its matcher.
+- `hooks/README.md` has the settings entries for the opt-in hooks.
+- The `implementer` subagent lists every caller of a shared function, constant or default before it changes one, names what each relies on in its report, and fixes a root cause in the shared code rather than in the one caller the ticket names.
+
+### Changed
+
+- `supervisor`: a spawned ticket is not finished until its report is read, and the answer to the user comes after the last worker reports.
+
+### Fixed
+
+- `commit-secrets` no longer flags content a merge brings in from the other branch. During a merge, a finding is dropped when the merged-in commit's version of the same file already holds that line. A conflict resolution, an edit made during the merge and a private key that spans lines are still reported. Paths with spaces and a user's `diff.noprefix` or `diff.mnemonicPrefix` setting no longer confuse the scan.
+
 ## 1.6.0 (2026-10-20, tag `v1.6.0`)
 
 ### Added

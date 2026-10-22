@@ -1,8 +1,8 @@
 # Session hooks
 
-Five hooks for Claude Code sessions. They protect configuration files, guard against committing secrets, block git commands that publish or destroy work, and check edited code with eslint and the type checker before a response ends. `stop-check` needs a JavaScript or TypeScript project; the others work in any git repository. They are plain ES modules with no dependencies and need Node 20 or newer.
+Eight hooks for Claude Code sessions. They protect configuration files, guard against committing secrets, block git commands that publish or destroy work, keep new documents out of the repository root, check edited code with eslint and the type checker before a response ends, remind a session to route multi-step work through the `supervisor` skill, and install Playwright's Chromium in a cloud session. `stop-check` needs a JavaScript or TypeScript project and `cloud-browsers` a Playwright one; the others work in any git repository. They are plain ES modules with no dependencies and need Node 20 or newer.
 
-They are opt-in per project. The plugin does not register them in `hooks.json`; you add them to your own settings (see "Turning them on"). The one hook the plugin does register, `handoff_notice.py`, is described in the top-level README.
+They are opt-in per project. The plugin does not register them in `hooks.json`; you add them to your own settings (see "Turning them on"). The two hooks the plugin does register, `handoff_notice.py` and `pre_compact.py`, are described in the top-level README.
 
 ## How they work
 
@@ -25,8 +25,11 @@ A hook reads an event from stdin as JSON, answers on stdout with a decision, and
 | `config-protection.mjs` | PreToolUse on Edit, Write, MultiEdit, NotebookEdit, Bash | Edits to an existing lint, type, test, build or CI configuration file |
 | `commit-secrets.mjs` | PreToolUse on Bash | A `git commit` whose changes contain a secret |
 | `git-guardrails.mjs` | PreToolUse on Bash | `git push`, `git reset --hard`, `git clean` and `git branch -D` |
+| `loose-files.mjs` | PreToolUse on Write, Bash | A new document (Markdown, HTML, a spreadsheet, an image, an archive) written at the repository root |
 | `edited-files.mjs` | PostToolUse on Edit, Write, MultiEdit | Nothing. It records the files a session edits for the next hook |
 | `stop-check.mjs` | Stop | The end of a response, until the files edited in it pass eslint and the type check |
+| `supervisor-reminder.mjs` | UserPromptSubmit | Nothing. It adds one line to the context on a session's first plain prompt |
+| `cloud-browsers.mjs` | SessionStart, async | Nothing. In a cloud session it installs the Chromium builds the project's Playwright expects |
 
 `lib.mjs` and `shell.mjs` hold the helpers the others share. They are not hooks.
 
@@ -71,6 +74,8 @@ Before a `git commit` runs, the hook scans what the commit would take: the stage
 
 A git error allows the commit: this hook is never the reason a commit fails.
 
+During a merge (`MERGE_HEAD` exists, for example after `git merge --no-commit` or a merge stopped on a conflict), the index holds every file the merged-in branch brought, so a plain scan would flag content that branch already has, such as a fake private key in a test fixture. The hook drops a finding when the merged-in commit's version of the same file already holds that exact line text. A line in neither parent, such as a conflict resolution or an edit made during the merge, is still scanned. A gitleaks finding that spans lines, such as a real private key, is never dropped, because its first line can match while the rest of the key differs; a finding gitleaks puts on one line (a key written as a string literal in a test) is compared by that line alone. The built-in patterns know no span, so they never drop a private-key header. A file the branch renamed is read under its new name, which the merged-in commit does not have, so its lines are still reported. A squash merge or a cherry-pick leaves no `MERGE_HEAD` and is scanned like any commit.
+
 ## git-guardrails
 
 `git push` publishes commits. `git reset --hard`, `git clean` and `git branch -D` throw away work that git cannot bring back. In a project that turns this hook on, the user runs these, and the hook denies them before they run:
@@ -86,6 +91,20 @@ It does not follow git aliases (`git p` after `git config alias.p push`), a here
 
 Adapted from Matt Pocock's [git-guardrails-claude-code](https://github.com/mattpocock/skills/tree/5beb35b/skills/misc/git-guardrails-claude-code) (MIT), which does the same with a shell script and `grep`.
 
+## loose-files
+
+Sessions leave briefs, exports, drafts, screenshots and spreadsheets in the repository root, where they sit untracked next to the files that belong there. The hook denies creating a new document at the root: a Write of a new file, or a shell command that creates one by redirection, `tee`, `cp` or `mv`. A document is a file with one of these extensions: `md`, `markdown`, `txt`, `html`, `htm`, `svg`, `png`, `jpg`, `jpeg`, `gif`, `webp`, `pdf`, `zip`, `csv`, `tsv`, `xlsx`, `xls`, `doc`, `docx`, `ppt`, `pptx`. The message says project documentation goes in `docs/` and personal notes outside the repository or in a git-ignored folder.
+
+Always allowed: editing a file that already exists, any file below the root, and the usual root files of common projects, such as `README.*`, `CHANGELOG.md`, `CLAUDE.md`, `AGENTS.md`, `LICENSE.*`, `NOTICE*`, `requirements*.txt`, `CMakeLists.txt`, `index.html`, `robots.txt`, `llms.txt` and `favicon.*`. The full list is `ALLOWED_ROOT_GLOBS` in the hook. `cp -t <dir>` and `mv --target-directory=<dir>` are judged by that directory. A project allows more names in `.claude/root-files`: one basename or glob per line (`*` and `?`), with `#` lines and blank lines ignored.
+
+```
+# .claude/root-files
+NOTICE.md
+release-*.md
+```
+
+The hook follows `cd`, `pushd` and `popd`. What it cannot resolve it does not judge, because a false block costs more than a missed file: the commands after a `cd` to a variable, a `$( ... )` or `-`, and a target that holds a variable, a glob or a substitution.
+
 ## edited-files and stop-check
 
 `edited-files` appends each edited path to a per-session file under the OS temp directory (`claude-hooks/<session id>.edited`). When the response ends, `stop-check` reads it and keeps every edited file that still exists, is inside the project, is not under `node_modules/`, `.git/`, `dist/`, `build/`, `.next/` or `coverage/`, and has the extension `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts` or `.cts`. With none left, or when nothing was edited, it is silent. It runs the project's own tools from `node_modules/.bin` (never `npx`):
@@ -99,6 +118,26 @@ A failure exits 2, which blocks the stop and hands the tool output to the model.
 
 One limit: `edited-files` watches the Edit and Write tools only, so a file written by a shell redirection is not recorded.
 
+## supervisor-reminder
+
+A CLAUDE.md line that says to use the `supervisor` skill for multi-step work is easy to skip: it is read once at startup, far from the request, and a session that skips it runs every step on the session model, with no subagent and no review before the pull request. This hook puts the reminder next to the user's first request instead. What a UserPromptSubmit hook prints with exit 0 is added to the model's context, so it adds one line: call the Skill tool with `supervisor` before a task with more than one step, send lookups to `scout`, tickets to `implementer`, tests to `tester` and every diff to `reviewer`, and skip all of it for a one-step ask.
+
+It fires once per session, marked by a file under the OS temp directory (`claude-hooks/<session id>.supervisor`). A prompt that starts with `/` is a route the user already chose, so it gets no reminder and does not use it up. An empty or malformed event prints nothing.
+
+## cloud-browsers
+
+A Claude Code cloud session starts in a fresh container with an older Chromium, and its network blocks `cdn.playwright.dev`, so `npx playwright install` fails and Playwright tests cannot run. Playwright's Chromium is a Chrome for Testing build, which Google also serves from `storage.googleapis.com`. In a cloud session (`CLAUDE_CODE_REMOTE` is `true`) this hook fetches the builds the project's Playwright expects from there:
+
+1. It acts only in a project that declares `playwright`, `@playwright/test` or `playwright-core` in `package.json`, or already has `node_modules/playwright-core/browsers.json`. Playwright pulled in by another package is not detected.
+2. When `node_modules/playwright-core/browsers.json` is missing and the project has a `package-lock.json`, it runs `npm ci`. With a pnpm, Yarn or Bun lockfile it runs nothing and says to install the dependencies with that tool first; with no lockfile it says so.
+3. It needs playwright-core 1.57 or newer, the first version that launches the Chrome for Testing folder layout. With an older or unreadable version it installs nothing and says so.
+4. It reads the `chromium` and `chromium-headless-shell` revisions from `playwright-core/browsers.json`, so a Playwright upgrade needs no change here, and downloads each build that is not installed yet.
+5. Each build is unpacked into a staging folder of its own and moved into place with one rename, so it appears whole or not at all. When a folder is already at that path without Playwright's completion marker, the hook leaves it alone and reports it.
+
+It runs only on Linux x64, needs `curl` and `unzip`, and keeps everything inside a 540-second budget, because Claude Code puts no timeout on an async hook. Register it with `"async": true` so the session starts while it works. Claude Code passes its one JSON line to the model on the next turn: which builds it installed, or why the tests cannot run yet. A Playwright test started before that line arrives can race the install. Outside a cloud session, and when there is nothing to do, it is silent. It never fails the session start.
+
+`CLOUD_BROWSERS_CFT_BASE` points it at another Chrome for Testing mirror; the tests use it to serve zips from a local folder.
+
 ## Environment variables
 
 | Variable | Hook | Effect |
@@ -108,6 +147,7 @@ One limit: `edited-files` watches the Edit and Write tools only, so a file writt
 | `CLAUDE_HOOK_MAX_FILES` | commit-secrets | Cap on untracked files scanned, default 400 |
 | `CLAUDE_HOOK_MAX_BYTES` | commit-secrets | Cap on scanned text in bytes, default 4 MB |
 | `CLAUDE_HOOK_STOP_BUDGET_MS` | stop-check | Time budget for all tools, default 100000 |
+| `CLOUD_BROWSERS_CFT_BASE` | cloud-browsers | Chrome for Testing mirror, default `https://storage.googleapis.com/chrome-for-testing-public` |
 
 ## Turning them on
 
@@ -134,6 +174,12 @@ Add the entries you want to `.claude/settings.local.json` (one project, git-igno
         "hooks": [
           { "type": "command", "command": "node /path/to/claude-skills/hooks/git-guardrails.mjs", "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "Write|Bash",
+        "hooks": [
+          { "type": "command", "command": "node /path/to/claude-skills/hooks/loose-files.mjs", "timeout": 10 }
+        ]
       }
     ],
     "PostToolUse": [
@@ -150,10 +196,27 @@ Add the entries you want to `.claude/settings.local.json` (one project, git-igno
           { "type": "command", "command": "node /path/to/claude-skills/hooks/stop-check.mjs", "timeout": 120 }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node /path/to/claude-skills/hooks/supervisor-reminder.mjs", "timeout": 10 }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          { "type": "command", "command": "node /path/to/claude-skills/hooks/cloud-browsers.mjs", "async": true }
+        ]
+      }
     ]
   }
 }
 ```
+
+A cloud session starts from the repository with no personal settings, so `cloud-browsers` only runs there when it is registered in the project's committed `.claude/settings.json`, with a path inside the repository. Copy `lib.mjs` next to it: the hook imports it, and since the hook is async, a missing import fails without a word. Outside a cloud session it costs one `node` launch and exits.
 
 `edited-files` and `stop-check` work as a pair: turn on both or neither.
 
@@ -181,4 +244,4 @@ echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' \
 node --test tests/hooks/
 ```
 
-The suites use Node's built-in runner, so there is nothing to install. Each one runs the script as Claude Code does, with the event as JSON on stdin (`tests/hooks/hookRun.mjs`). The `commit-secrets` tests start git in temporary repositories, and the gitleaks cases are skipped when `gitleaks` is not installed. The `git-guardrails` tests include an event written to stdin in two parts with a pause between them. The `stop-check` tests use small stand-ins for eslint, `tsc` and `next`, not the real tools. `tests/hooks/index.js` only exists so the directory form of the command works on Node 22 as well as Node 20.
+The suites use Node's built-in runner, so there is nothing to install. Each one runs the script as Claude Code does, with the event as JSON on stdin (`tests/hooks/hookRun.mjs`). The `commit-secrets` tests start git in temporary repositories, and the gitleaks cases are skipped when `gitleaks` is not installed. The `git-guardrails` tests include an event written to stdin in two parts with a pause between them. The `stop-check` tests use small stand-ins for eslint, `tsc` and `next`, not the real tools. The `cloud-browsers` tests build their own zips and serve them from a local folder, so nothing is downloaded; the install cases run only on Linux x64 and are skipped elsewhere. `tests/hooks/index.js` only exists so the directory form of the command works on Node 22 as well as Node 20.

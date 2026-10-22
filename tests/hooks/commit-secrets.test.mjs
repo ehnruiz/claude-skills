@@ -1,11 +1,11 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { randomInt } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "./compat.mjs";
 import { runHook } from "./hookRun.mjs";
-import { buildScanText, commitRepo, indexDiff, locateInDiff, scanDiff, scanPlan, unscannableWrites, } from "../../hooks/commit-secrets.mjs";
+import { buildScanText, commitRepo, indexDiff, inheritedFrom, locateInDiff, scanDiff, scanPlan, unscannableWrites, } from "../../hooks/commit-secrets.mjs";
 const HOOKS = path.resolve(import.meta.dirname, "../../hooks");
 const hook = path.resolve(HOOKS, "commit-secrets.mjs");
 const gitleaksAvailable = (() => {
@@ -25,13 +25,27 @@ const bash = (root, command) => ({
     tool_input: { command },
 });
 /** A fabricated AWS-shaped key: AKIA plus 16 random uppercase letters and digits. */
-function fakeKey() {
-    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+function fakeKey(alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") {
     // the 16 characters are all different: gitleaks ignores low-entropy matches, which made a random key flaky
     const chars = new Set();
     while (chars.size < 16)
         chars.add(alphabet[randomInt(alphabet.length)]);
     return `AKIA${[...chars].join("")}`;
+}
+/**
+ * A fabricated key that this machine's gitleaks is checked to flag. gitleaks' AWS rule reads only A-Z and 2-7 after
+ * AKIA, so a random key with a 0, 1, 8 or 9 is never flagged (and others are missed by entropy filters); a test that
+ * expects a finding would then see only the inherited ones. The key is drawn from the characters the rule reads,
+ * tried in the two shapes the tests write, and a miss draws another. Built at runtime: no key is a literal.
+ */
+function flaggedKey() {
+    const flagged = (text) => spawnSync("gitleaks", ["stdin", "--no-banner", "--redact", "--exit-code", "2"], { input: text, stdio: ["pipe", "ignore", "ignore"] }).status === 2;
+    for (let attempt = 0; attempt < 200; attempt++) {
+        const key = fakeKey("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
+        if (flagged(`export const k = '${key}';\n`) && flagged(keyLines(key)))
+            return key;
+    }
+    throw new Error("gitleaks flagged none of 200 generated keys");
 }
 /** A temp repository with one staged file. */
 function repo(content) {
@@ -69,7 +83,7 @@ describe("commit-secrets hook", () => {
         expect(out.permissionDecisionReason).not.toContain(key);
     });
     it.skipIf(!gitleaksAvailable)("denies with gitleaks when a key is staged, with a rule id and no key value", async () => {
-        const key = fakeKey();
+        const key = flaggedKey();
         const root = repo(`const awsAccessKeyId = "${key}";\nconst awsSecretAccessKey = "${key}${key}";\n`);
         const { stdout, code } = await hookRun(root, bash(root, "git commit -m x"));
         expect(code).toBe(0);
@@ -135,6 +149,15 @@ function committedRepo(files, after = {}) {
     git("commit", "-q", "-m", "init");
     write(after);
     return dir;
+}
+/** The hook's JSON output; when stdout is not JSON, the assertion message holds stdout, stderr and the exit code. */
+function hookOutput({ stdout, stderr, code }) {
+    try {
+        return JSON.parse(stdout).hookSpecificOutput;
+    }
+    catch {
+        throw new Error(`hook output is not JSON: stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)} exit code=${code}`);
+    }
 }
 const decision = (stdout) => stdout ? JSON.parse(stdout).hookSpecificOutput.permissionDecision : "allow";
 describe("commit-secrets hook: what the command is about to commit", () => {
@@ -212,6 +235,8 @@ describe("commit-secrets hook: what the command is about to commit", () => {
         const inN = lines.findIndex((l) => l.includes("awsAccessKeyId")) + 1;
         expect(locateInDiff(text, inA)).toEqual({ file: "a.ts", line: 6 });
         expect(locateInDiff(text, inN)).toEqual({ file: "dir/n.ts", line: 3 });
+        // git ends the header of a path with spaces in a tab, which is not part of the name
+        expect(locateInDiff(["diff --git a/my dir/f.ts b/my dir/f.ts", "--- a/my dir/f.ts\t", "+++ b/my dir/f.ts\t", "@@ -0,0 +1 @@", "+x"].join("\n"), 5)).toEqual({ file: "my dir/f.ts", line: 1 });
         // headers, removed lines and numbers past the end are not findings
         expect(locateInDiff(text, 1)).toBeNull();
         expect(locateInDiff(text, lines.length + 50)).toBeNull();
@@ -231,7 +256,7 @@ describe("commit-secrets hook: what the command is about to commit", () => {
         expect(decision(stdout)).toBe("allow");
     });
     it.skipIf(!gitleaksAvailable)("denies with gitleaks for git commit -am with the key unstaged", async () => {
-        const key = fakeKey();
+        const key = flaggedKey();
         const root = committedRepo({ "settings.ts": "export const a = 1;\n" }, { "settings.ts": keyLines(key) });
         const { stdout } = await hookRun(root, bash(root, "git commit -am x"));
         const out = JSON.parse(stdout).hookSpecificOutput;
@@ -249,7 +274,7 @@ describe("commit-secrets hook: what the command is about to commit", () => {
         expect(out.permissionDecisionReason).not.toContain(key);
     });
     it.skipIf(!gitleaksAvailable)("denies with gitleaks for git add -A && git commit with the key in an untracked file", async () => {
-        const key = fakeKey();
+        const key = flaggedKey();
         const root = committedRepo({ "ok.ts": "export const a = 1;\n" }, { "sub/new.ts": keyLines(key) });
         const { stdout } = await hookRun(root, bash(root, "git add -A && git commit -m x"));
         const out = JSON.parse(stdout).hookSpecificOutput;
@@ -427,7 +452,7 @@ describe("commit-secrets hook: a cap on what one commit scans", () => {
         expect(NOT_SCANNED.exec(out.permissionDecisionReason)?.[1]).toBe("100");
     });
     it.skipIf(!gitleaksAvailable)("denies with gitleaks and appends the note when something was not scanned", async () => {
-        const key = fakeKey();
+        const key = flaggedKey();
         const root = repoWithUntracked(4, 100, { "a-early.ts": keyLines(key) });
         const { stdout } = await hookRun(root, bash(root, "git add -A && git commit -m x"), {
             CLAUDE_HOOK_MAX_FILES: "3",
@@ -693,6 +718,155 @@ describe("an add in another repository", () => {
         const { stdout, code } = await hookRun(main, bash(main, `git -C ${other} add . && git commit -m clean`), off);
         expect(code).toBe(0);
         expect(stdout).toBe("");
+    });
+});
+describe("commit-secrets hook: merging a branch in", () => {
+    /**
+     * A repository mid-merge: `main` writes `fromMain` to `shared.ts`, the feature branch writes `branchFiles`, and
+     * `git merge --no-commit main` runs on the branch. When both sides change `shared.ts` the merge stops on a conflict,
+     * and `resolution` is staged as the merged file. `mainFiles` are other files main adds.
+     */
+    function midMerge(fromMain, branchFiles, resolution, mainFiles = {}) {
+        const dir = committedRepo({ "shared.ts": "export const a = 1;\n" });
+        const git = (...args) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
+        git("branch", "-M", "main");
+        git("checkout", "-q", "-b", "feature");
+        for (const [name, content] of Object.entries(branchFiles))
+            writeFileSync(path.join(dir, name), content);
+        git("add", "-A");
+        git("commit", "-q", "-m", "feature");
+        git("checkout", "-q", "main");
+        writeFileSync(path.join(dir, "shared.ts"), fromMain);
+        for (const [name, content] of Object.entries(mainFiles)) {
+            mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+            writeFileSync(path.join(dir, name), content);
+        }
+        git("add", "-A");
+        git("commit", "-q", "-m", "main");
+        git("checkout", "-q", "feature");
+        try {
+            git("merge", "-q", "--no-commit", "--no-ff", "main");
+        }
+        catch {
+            // a conflict leaves MERGE_HEAD in place
+        }
+        if (resolution !== undefined) {
+            writeFileSync(path.join(dir, "shared.ts"), resolution);
+            git("add", "shared.ts");
+        }
+        return dir;
+    }
+    /** A PEM marker, built at runtime: this source holds no private-key header for a scanner to read as a key. */
+    const pemMarker = (kind) => `-----${kind} RSA PRIVATE KEY-----`;
+    /** A fabricated RSA private key: the header, 4 lines of random base64 and the footer. */
+    const pemLines = () => {
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        const line = () => Array.from({ length: 64 }, () => alphabet[randomInt(alphabet.length)]).join("");
+        return [pemMarker("BEGIN"), line(), line(), line(), line(), pemMarker("END")];
+    };
+    const fakePrivateKey = () => `${pemLines().join("\n")}\n`;
+    /** The same key as one source line: a string literal with `\n` escapes, as a test fixture holds it. */
+    const onelinePrivateKey = () => `export const pem = '${pemLines().join("\\n")}\\n';\n`;
+    it("allows a merge that brings in a flagged line main already holds (fallback)", async () => {
+        const root = midMerge(keyLines(fakeKey()), { "feature.ts": "export const b = 2;\n" });
+        const { stdout, code } = await hookRun(root, bash(root, "git commit --no-edit"), off);
+        expect(code).toBe(0);
+        expect(stdout).toBe("");
+    });
+    it.skipIf(!gitleaksAvailable)("allows a merge that brings in a flagged line main already holds (gitleaks)", async () => {
+        const root = midMerge(keyLines(flaggedKey()), { "feature.ts": "export const b = 2;\n" });
+        const { stdout } = await hookRun(root, bash(root, "git commit --no-edit"));
+        expect(decision(stdout)).toBe("allow");
+    });
+    it("still asks for a secret the conflict resolution adds, in neither parent (fallback)", async () => {
+        const key = fakeKey();
+        const root = midMerge("export const a = 2;\n", { "shared.ts": "export const a = 3;\n" }, `export const a = 2;\nexport const k = '${key}';\n`);
+        const result = await hookRun(root, bash(root, "git commit --no-edit"), off);
+        const out = hookOutput(result);
+        expect(out.permissionDecision).toBe("ask");
+        expect(out.permissionDecisionReason).toContain("shared.ts:2");
+        expect(out.permissionDecisionReason).not.toContain(key);
+    });
+    it.skipIf(!gitleaksAvailable)("denies a merge whose conflict resolution adds a new secret, while main's own flagged lines pass", async () => {
+        const mainKey = flaggedKey();
+        const newKey = flaggedKey();
+        const root = midMerge(keyLines(mainKey), { "shared.ts": "export const a = 3;\n" }, `${keyLines(mainKey)}${keyLines(newKey)}`);
+        const result = await hookRun(root, bash(root, "git commit --no-edit"));
+        const out = hookOutput(result);
+        expect(out.permissionDecision).toBe("deny");
+        expect(out.permissionDecisionReason).toMatch(/shared\.ts:[34]\b/);
+        expect(out.permissionDecisionReason).not.toMatch(/shared\.ts:[12]\b/);
+        expect(out.permissionDecisionReason).not.toContain(newKey);
+    });
+    it.skipIf(!gitleaksAvailable)("allows a merge that brings in a one-line private-key fixture main already holds (gitleaks)", async () => {
+        // gitleaks reports a key written as one string literal on a single line (EndLine equals StartLine), so the exact
+        // line comparison is enough
+        const root = midMerge(onelinePrivateKey(), { "feature.ts": "export const b = 2;\n" });
+        const { stdout } = await hookRun(root, bash(root, "git commit --no-edit"));
+        expect(decision(stdout)).toBe("allow");
+    });
+    it("asks about a one-line private-key fixture main holds when only the patterns run, whose span is unknown", async () => {
+        const root = midMerge(onelinePrivateKey(), { "feature.ts": "export const b = 2;\n" });
+        const result = await hookRun(root, bash(root, "git commit --no-edit"), off);
+        const out = hookOutput(result);
+        expect(out.permissionDecision).toBe("ask");
+        expect(out.permissionDecisionReason).toContain("shared.ts:1");
+    });
+    it("still asks when a resolution keeps main's private-key header but changes the body (fallback)", async () => {
+        const root = midMerge(fakePrivateKey(), { "shared.ts": "export const a = 3;\n" }, fakePrivateKey());
+        const result = await hookRun(root, bash(root, "git commit --no-edit"), off);
+        const out = hookOutput(result);
+        expect(out.permissionDecision).toBe("ask");
+        expect(out.permissionDecisionReason).toContain("shared.ts:1");
+    });
+    it.skipIf(!gitleaksAvailable)("denies when a resolution keeps main's private-key header but changes the body (gitleaks)", async () => {
+        const root = midMerge(fakePrivateKey(), { "shared.ts": "export const a = 3;\n" }, fakePrivateKey());
+        const { stdout } = await hookRun(root, bash(root, "git commit --no-edit"));
+        expect(decision(stdout)).toBe("deny");
+    });
+    it("still asks for a staged secret when a later git add puts an inherited line at the same file:line", async () => {
+        const key = fakeKey();
+        // main's shared.ts holds the comment; the resolution stages the key at line 2, then the comment goes in above it,
+        // so the add's diff has the comment at line 2 too: the finding is matched by its text, never its file:line
+        const root = midMerge("export const a = 2;\n// from main\n", { "shared.ts": "export const a = 3;\n" }, `export const a = 2;\nexport const k = '${key}';\n`);
+        writeFileSync(path.join(root, "shared.ts"), `export const a = 2;\n// from main\nexport const k = '${key}';\n`);
+        const result = await hookRun(root, bash(root, "git add shared.ts && git commit --no-edit"), off);
+        const out = hookOutput(result);
+        expect(out.permissionDecision).toBe("ask");
+        expect(out.permissionDecisionReason).toContain("AWS access key in shared.ts:2");
+        expect(out.permissionDecisionReason).not.toContain(key);
+    });
+    it.skipIf(!gitleaksAvailable)("denies a new secret staged at the same file:line as an inherited line, under the inherited line's rule (gitleaks)", async () => {
+        const mainKey = flaggedKey();
+        const newKey = flaggedKey();
+        // main's lines are staged; the add then puts the new key's lines at the same file:line (1 and 2), so the two
+        // findings share a rule and a file:line and only their text tells them apart
+        const root = midMerge(keyLines(mainKey), { "shared.ts": "export const a = 3;\n" }, keyLines(mainKey));
+        writeFileSync(path.join(root, "shared.ts"), keyLines(newKey));
+        const result = await hookRun(root, bash(root, "git add shared.ts && git commit --no-edit"));
+        const out = hookOutput(result);
+        expect(out.permissionDecision).toBe("deny");
+        expect(out.permissionDecisionReason).toMatch(/shared\.ts:[12]\b/);
+        expect(out.permissionDecisionReason).not.toContain(newKey);
+    });
+    it("allows a merge that brings in a flagged line main holds in a file whose path has a space (fallback)", async () => {
+        // git ends the diff header of such a path in a tab, which is no part of the name the merged-in file is read by
+        const root = midMerge("export const a = 2;\n", { "feature.ts": "export const b = 2;\n" }, undefined, { "my dir/f.ts": keyLines(fakeKey()) });
+        expect(decision((await hookRun(root, bash(root, "git commit --no-edit"), off)).stdout)).toBe("allow");
+    });
+    it("drops a finding whose own line the merged-in file holds, judged by its span when gitleaks gives one", () => {
+        const header = pemMarker("BEGIN");
+        const inherited = inheritedFrom((file) => (file === "s.ts" ? new Set(["const old = 1;", header]) : new Set()));
+        expect(inherited({ file: "s.ts", text: "const old = 1;" })).toBe(true);
+        expect(inherited({ file: "s.ts", text: "const old = 1;\r" })).toBe(true);
+        expect(inherited({ file: "s.ts", text: "const fresh = 2;" })).toBe(false);
+        expect(inherited({ file: "other.ts", text: "const old = 1;" })).toBe(false);
+        // a finding across lines is never inherited; a one-line one is, whatever it holds
+        expect(inherited({ file: "s.ts", text: "const old = 1;", multiline: true })).toBe(false);
+        expect(inherited({ file: "s.ts", text: header, multiline: false })).toBe(true);
+        expect(inherited({ file: "s.ts", text: header, multiline: true })).toBe(false);
+        // with the span unknown (the pattern scan) a key header is never inherited
+        expect(inherited({ file: "s.ts", text: header })).toBe(false);
     });
 });
 describe("commit-secrets hook: a file written and added in the same command", () => {
