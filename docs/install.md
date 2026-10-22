@@ -5,8 +5,8 @@
 | Component | Needs | Why |
 | --- | --- | --- |
 | Skills and subagents | Claude Code | Skills are `SKILL.md` folders and subagents are Markdown files with frontmatter; nothing runs outside Claude Code |
-| `handoff_notice.py` hook, `ticket_lint.py`, `find_collisions.py` | Python 3.9 or newer, `git` on `PATH` | The scripts use `str.removesuffix`, which arrived in 3.9. On Python 3.8 the test suite fails with `AttributeError: 'str' object has no attribute 'removesuffix'` |
-| The five opt-in hooks under `hooks/*.mjs` | Node 20 or newer, `git` on `PATH` | Plain ES modules with no dependencies. `gitleaks` is optional for `commit-secrets` |
+| `handoff_notice.py` and `pre_compact.py` hooks, `ticket_lint.py`, `find_collisions.py` | Python 3.9 or newer, `git` on `PATH` | The scripts use `str.removesuffix`, which arrived in 3.9. On Python 3.8 the test suite fails with `AttributeError: 'str' object has no attribute 'removesuffix'` |
+| The opt-in hooks under `hooks/*.mjs` | Node 20 or newer, `git` on `PATH` | Plain ES modules with no dependencies. `gitleaks` is optional for `commit-secrets`; `cloud-browsers` also needs `unzip` |
 
 Measured on 2026-10-16 on macOS 15 (Darwin 24.6) with Claude Code 2.1.296:
 
@@ -19,7 +19,7 @@ Measured on 2026-10-16 on macOS 15 (Darwin 24.6) with Claude Code 2.1.296:
 
 CI (`.github/workflows/test.yml`) is configured to run both suites on Ubuntu with Python 3.9 and 3.12 and Node 20 and 22, on every push to `main` and every pull request. The badge on the pull request or the Actions tab says whether the last run passed.
 
-Windows is untested. The Node hooks are started as `node <script>`, which the Claude Code hooks reference says works on every platform. The SessionStart hook is started as `python3 <script>`, and that reference gives no guidance on the Python interpreter name on Windows, so expect to edit that command if `python3` is not on your `PATH`.
+Windows is untested. The Node hooks are started as `node <script>`, which the Claude Code hooks reference says works on every platform. The two Python hooks are started as `python3 <script>`, and that reference gives no guidance on the Python interpreter name on Windows, so expect to edit that command if `python3` is not on your `PATH`.
 
 The `skills` CLI (`npx skills add ehnruiz/claude-skills`) can also copy the skills into other coding agents with `--agent`. Only the skills travel that way: the subagents and hooks are Claude Code features. Running it with `--list` against this repository printed "Found 21 skills" and exited 0; installs into other agents were not run.
 
@@ -57,7 +57,7 @@ cp -R claude-skills/skills/ticket-write ~/.claude/skills/
 cp claude-skills/agents/*.md ~/.claude/agents/
 ```
 
-A copy install does not register the SessionStart hook; the README's Hooks section has the settings snippet for it.
+A copy install does not register the SessionStart and PreCompact hooks; the README's Hooks section has the settings snippet for them.
 
 ## Check that it worked
 
