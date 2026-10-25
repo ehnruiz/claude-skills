@@ -51,7 +51,7 @@ Then the workflow the skills are built around, on a project of yours. The slash 
 1. **Start the session and say what is wrong.** "The date parser drops the timezone on `2026-10-16T09:00+02:00`. Diagnose it and fix it." The `diagnosing-bugs` skill fires on "diagnose": it builds a command that goes red on the bug before anyone guesses at a cause, then reproduces, ranks hypotheses and instruments one variable at a time.
 2. **Let the supervisor route the steps.** With more than one step, `supervisor` fires. It keeps the plan and the judgment in your session, sends a Haiku `scout` to find the parser and its tests, and hands the fix to a Sonnet `implementer` as one ticket: the behavior wanted, where it goes, the command that proves it, the files involved, what must stay unchanged. The `tdd` skill makes the implementer write the failing test first. A worker that fails the same ticket twice moves up a tier with its failed report attached.
 3. **Read the gates as exit codes.** The supervisor runs lint, the type check and the tests itself, one command per step, and reports `lint=0 typecheck=0 test=0`, never "all green". The `regression-proof` skill adds the step most people skip: in a scratch worktree at the merge base, with only the new test copied in, the test must fail. [docs/examples.md](docs/examples.md) shows that recipe on a real fix from this repository, with both exit codes.
-4. **Send the diff to review.** The Opus `reviewer` reads the diff against the ask and the project's standards and reports each finding with a file, a line and a failure scenario. The supervisor fixes what holds up and reruns the gates.
+4. **Send the diff to review.** The Opus `reviewer` reads the diff against the ask and the project's standards and reports each finding with a file, a line, a failure scenario and a verdict. A second, fresh `reviewer` tries to refute each finding, and the supervisor fixes only what comes back confirmed, then reruns the gates.
 5. **Stop without losing the thread.** `/agent-workflow:handoff` writes a note outside the repository: goal, what is done and how it was verified, decisions, open questions, next steps. The next session sees the opening of that note at startup through the `handoff_notice.py` hook, and `/agent-workflow:pick-up` checks the repository for drift before it starts on the next step.
 
 The prompts in steps 1 and 2 show the shape of a request; no session was run against them for this page. What was run is the scripts, the hooks, the tests and the install path, and [docs/install.md](docs/install.md) says where.
@@ -138,7 +138,7 @@ Each subagent's model is set in its file. The `supervisor` skill sends work to t
 | [`implementer`](agents/implementer.md) | Sonnet | Builds one ticket test-first and reports each command's exit code. It does not commit. |
 | [`tester`](agents/tester.md) | Sonnet | Writes and runs tests, and touches only tests and fixtures. |
 | [`researcher`](agents/researcher.md) | Sonnet | Reads primary sources in the background and writes a note where every claim has a source and a date. |
-| [`reviewer`](agents/reviewer.md) | Opus | Reviews a diff against the ticket and the repository's standards, giving a failure scenario for each finding. |
+| [`reviewer`](agents/reviewer.md) | Opus | Reviews a diff against the ticket and the repository's standards, giving a failure scenario and a verdict for each finding: confirmed, needs_validation or rejected. A fresh one refutes another's findings. |
 
 ## Hooks
 
@@ -208,6 +208,8 @@ The Node tests cover the eight opt-in hooks. The Python tests check the lint scr
 The handoff skill grew out of the handoff idea in [Matt Pocock's skills](https://github.com/mattpocock/skills). `grilling`, `tdd`, `diagnosing-bugs`, `research`, `writing-for-agents` and `retro` are adapted from the same repository under the MIT License; each keeps the notice in its own `LICENSE.md`. The `git-guardrails.mjs` hook is adapted from its `git-guardrails-claude-code` skill, with the credit in the hook's header comment.
 
 `explain-the-number` follows the principle of the same name in Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT); it keeps the notice in its own `LICENSE.md`. `writing-for-agents/PRESSURE-TESTS.md` rewrites the method of Jesse Vincent's `testing-skills-with-subagents` in [obra/clank](https://github.com/obra/clank); no text is copied, as that repository ships no license file.
+
+The `reviewer` subagent's three verdicts and its refute step take their idea from the verdict model in Cloudflare's [security-audit skill](https://github.com/cloudflare/security-audit-skill) (MIT), generalized from security audits to any review. The wording is new; no text is copied.
 
 ## License
 
