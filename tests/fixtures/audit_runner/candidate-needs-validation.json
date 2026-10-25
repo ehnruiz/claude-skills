@@ -1,0 +1,17 @@
+{
+  "proposed_verdict": "needs_validation",
+  "fingerprint": "api/items-read-without-owner-check",
+  "title": "Item lookup returns any item by id",
+  "description": "The items handler returns the stored item for any id the caller sends.",
+  "claimed_root_cause": "The handler calls the store with the request id and never compares the item owner with the caller.",
+  "trace": [
+    {"kind": "entrypoint", "file": "src/api.js", "line": 3, "scope": "getItem", "description": "Reads the id from the query string."},
+    {"kind": "propagation", "file": "src/store.js", "line": 10, "scope": "Store.get", "description": "Looks the item up by id alone."},
+    {"kind": "sink", "file": "src/api.js", "line": 5, "scope": "getItem", "description": "Returns the item body to the caller."}
+  ],
+  "evidence": [
+    {"file": "src/api.js", "line": 4, "description": "No owner comparison between lookup and response."}
+  ],
+  "blockers": ["Whether the gateway in front of the service enforces item ownership is not in the repository."],
+  "validation_plan": {"deployment": "Ask the service owner to show the gateway policy for the items route."}
+}

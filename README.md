@@ -42,7 +42,7 @@ After the plugin install, `claude plugin list` shows `agent-workflow@ehnruiz` as
 $ python3 hooks/handoff_notice.py --print-dir
 /Users/you/.claude/projects/-Users-you-projects-claude-skills/handoffs
 $ python3 skills/skill-collision-audit/scripts/find_collisions.py skills
-22 skills, 1 overlapping pairs, 0 duplicate names
+23 skills, 1 overlapping pairs, 0 duplicate names
 ...
 ```
 
@@ -90,6 +90,7 @@ Three examples run against this repository, with the commands and the exit codes
 | [`confluence-jira-links`](skills/confluence-jira-links/SKILL.md) | Shows each ticket on a Confluence page as a smart link and makes sure each ticket links back to the page once, not twice. |
 | [`leader-1-1-prep`](skills/leader-1-1-prep/SKILL.md) | Builds a one-screen brief for a 1:1 with a skip-level: what carried forward, at most two asks, people, strategy, and one question about your growth. |
 | [`skill-collision-audit`](skills/skill-collision-audit/SKILL.md) | Finds skills whose descriptions compete for the same request, then fixes the descriptions so each request goes to exactly one skill. A script shortlists the overlapping pairs and same-name duplicates; Claude judges each pair against realistic requests. |
+| [`security-audit-runner`](skills/security-audit-runner/SKILL.md) | Runs Cloudflare's `security-audit` skill in full audit mode from Claude Code. It builds each agent's prompt file from that skill's text, checks every reply against its contract and discards a bad one, keeps the coverage ledger and the agent-call budget, and writes `findings.json` and `NEEDS-VALIDATION.md`. |
 
 ### Ticket budgets
 
@@ -197,7 +198,7 @@ node --test tests/hooks/
 claude plugin validate .
 ```
 
-The Node tests cover the eight opt-in hooks. The Python tests check the lint script, the collision script, the handoff and pre-compact hooks, each skill's and subagent's frontmatter, links inside the skills and the docs, that this README lists every skill and subagent and names the plugin as the manifests do, and that the changelog has a section for the current version. CI runs both suites on the oldest and the current supported runtimes: Python 3.9 and 3.12, Node 20 and 22.
+The Node tests cover the eight opt-in hooks. The Python tests check the lint script, the collision script, the security-audit runner, the handoff and pre-compact hooks, each skill's and subagent's frontmatter, links inside the skills and the docs, that this README lists every skill and subagent and names the plugin as the manifests do, and that the changelog has a section for the current version. CI runs both suites on the oldest and the current supported runtimes: Python 3.9 and 3.12, Node 20 and 22.
 
 ## Releases
 
@@ -210,6 +211,8 @@ The handoff skill grew out of the handoff idea in [Matt Pocock's skills](https:/
 `explain-the-number` follows the principle of the same name in Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT); it keeps the notice in its own `LICENSE.md`. `writing-for-agents/PRESSURE-TESTS.md` rewrites the method of Jesse Vincent's `testing-skills-with-subagents` in [obra/clank](https://github.com/obra/clank); no text is copied, as that repository ships no license file.
 
 The `reviewer` subagent's three verdicts and its refute step take their idea from the verdict model in Cloudflare's [security-audit skill](https://github.com/cloudflare/security-audit-skill) (MIT), generalized from security audits to any review. The wording is new; no text is copied.
+
+`security-audit-runner` runs [Cloudflare's security-audit skill](https://github.com/cloudflare/security-audit-skill) (MIT), which you install separately. It reads that skill's files at run time and copies none of its text into this repository.
 
 ## License
 
