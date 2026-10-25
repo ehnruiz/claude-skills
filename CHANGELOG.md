@@ -6,6 +6,12 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+## 1.9.0 (2026-10-24)
+
+### Added
+
+- `security-audit-runner`: a skill that runs [Cloudflare's security-audit skill](https://github.com/cloudflare/security-audit-skill) in full audit mode from Claude Code, for the `quick`, `standard` and `deep` profiles, first and later runs, and source-only or sandboxed execution. Its script, `audit_runner.py`, reads the installed skill at run time and copies its blocks into each agent's prompt file verbatim. It pulls each agent's final JSON out of its transcript, checks it against the role's contract and schema branch, and discards a bad reply without repairing it. It applies hunter, critic and verifier results to the coverage ledger under that skill's rules, merges candidates that share a root cause, counts agent calls against the budget while keeping the critic and validation reserves, promotes allowlisted scratch files with no-follow opens, and writes `findings.json` and `NEEDS-VALIDATION.md`. Every ledger and findings write passes the skill's Node validators first.
+
 ## 1.8.0 (2026-10-24)
 
 ### Changed

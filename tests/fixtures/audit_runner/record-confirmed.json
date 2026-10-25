@@ -1,0 +1,19 @@
+{
+  "verdict": "confirmed",
+  "fingerprint": "api/items-read-without-owner-check",
+  "title": "Item lookup returns another user's item",
+  "description": "A signed-in user reads an item that belongs to another dummy user.",
+  "root_cause": "The handler calls the store with the request id and never compares the item owner with the caller.",
+  "trace": [
+    {"kind": "entrypoint", "file": "src/api.js", "line": 3, "scope": "getItem", "description": "Reads the id from the query string."},
+    {"kind": "sink", "file": "src/api.js", "line": 5, "scope": "getItem", "description": "Returns the item body to the caller."}
+  ],
+  "evidence": [
+    {"file": "src/api.js", "line": 4, "description": "No owner comparison between lookup and response."}
+  ],
+  "execution": {
+    "payloads": ["GET /items?id=2 as dummy user 1"],
+    "observed_result": "The local test returned dummy user 2's item to dummy user 1."
+  },
+  "severity": {"impact": {"score": "high"}, "overall_severity": "high"}
+}

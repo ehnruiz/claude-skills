@@ -1,0 +1,123 @@
+{
+  "$comment": "A small stand-in for the security-audit skill's report schema, using the same keywords and verdict branches.",
+  "type": "array",
+  "items": {
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "verdict": {"type": "string", "const": "confirmed"},
+          "fingerprint": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$"},
+          "title": {"type": "string", "minLength": 1, "visibleContent": true},
+          "description": {"type": "string", "minLength": 1, "visibleContent": true},
+          "root_cause": {"type": "string", "minLength": 1, "visibleContent": true},
+          "trace": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {
+            "type": "object",
+            "properties": {
+              "kind": {"type": "string", "enum": ["entrypoint", "propagation", "sink"]},
+              "file": {"type": "string", "minLength": 1},
+              "line": {"type": "integer", "minimum": 1},
+              "scope": {"type": "string", "minLength": 1, "visibleContent": true},
+              "description": {"type": "string", "minLength": 1, "visibleContent": true}
+            },
+            "required": ["kind", "file", "line", "scope", "description"],
+            "additionalProperties": false
+          }},
+          "evidence": {"type": "array", "minItems": 1, "items": {
+            "type": "object",
+            "properties": {
+              "file": {"type": "string", "minLength": 1},
+              "line": {"type": "integer", "minimum": 1},
+              "description": {"type": "string", "minLength": 1, "visibleContent": true}
+            },
+            "required": ["file", "line", "description"],
+            "additionalProperties": false
+          }},
+          "execution": {
+            "type": "object",
+            "properties": {
+              "payloads": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+              "observed_result": {"type": "string", "minLength": 1, "visibleContent": true}
+            },
+            "required": ["payloads", "observed_result"],
+            "additionalProperties": false
+          },
+          "severity": {
+            "type": "object",
+            "properties": {
+              "impact": {
+                "type": "object",
+                "properties": {"score": {"type": "string", "enum": ["informational", "low", "medium", "high", "critical"]}},
+                "required": ["score"],
+                "additionalProperties": false
+              },
+              "overall_severity": {"type": "string", "enum": ["informational", "low", "medium", "high", "critical"]}
+            },
+            "required": ["impact", "overall_severity"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["verdict", "fingerprint", "title", "description", "root_cause", "trace", "evidence", "execution", "severity"],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "verdict": {"type": "string", "const": "needs_validation"},
+          "fingerprint": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$"},
+          "title": {"type": "string", "minLength": 1, "visibleContent": true},
+          "description": {"type": "string", "minLength": 1, "visibleContent": true},
+          "claimed_root_cause": {"type": "string", "minLength": 1, "visibleContent": true},
+          "trace": {"type": "array", "minItems": 1, "items": {
+            "type": "object",
+            "properties": {
+              "kind": {"type": "string", "enum": ["entrypoint", "propagation", "sink"]},
+              "file": {"type": "string", "minLength": 1},
+              "line": {"type": "integer", "minimum": 1},
+              "scope": {"type": "string", "minLength": 1, "visibleContent": true},
+              "description": {"type": "string", "minLength": 1, "visibleContent": true}
+            },
+            "required": ["kind", "file", "line", "scope", "description"],
+            "additionalProperties": false
+          }},
+          "evidence": {"type": "array", "minItems": 1, "items": {
+            "type": "object",
+            "properties": {
+              "file": {"type": "string", "minLength": 1},
+              "line": {"type": "integer", "minimum": 1},
+              "description": {"type": "string", "minLength": 1, "visibleContent": true}
+            },
+            "required": ["file", "line", "description"],
+            "additionalProperties": false
+          }},
+          "blockers": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1, "visibleContent": true}},
+          "validation_plan": {
+            "type": "object",
+            "properties": {
+              "local": {"type": "string", "minLength": 1, "visibleContent": true},
+              "deployment": {"type": "string", "minLength": 1, "visibleContent": true}
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["verdict", "fingerprint", "title", "description", "claimed_root_cause", "trace", "evidence", "blockers", "validation_plan"],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "verdict": {"type": "string", "const": "rejected"},
+          "fingerprint": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$"},
+          "title": {"type": "string", "minLength": 1, "visibleContent": true},
+          "description": {"type": "string", "minLength": 1, "visibleContent": true},
+          "claimed_root_cause": {"type": "string", "minLength": 1, "visibleContent": true},
+          "trace": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+          "evidence": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+          "reason": {"type": "string", "minLength": 1, "visibleContent": true}
+        },
+        "required": ["verdict", "fingerprint", "title", "description", "claimed_root_cause", "trace", "evidence", "reason"],
+        "additionalProperties": false
+      }
+    ]
+  }
+}
