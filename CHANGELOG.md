@@ -6,6 +6,14 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+## 1.8.0 (2026-10-24)
+
+### Changed
+
+- The `reviewer` subagent ends every finding with one of three verdicts. `confirmed` needs a complete trace and an observed or source-proven result, and is the only verdict with a severity. `needs_validation` names the one missing fact and a safe way to get it. `rejected` stays in the report with what disproves it, so it is not raised again. Severity is the impact the review showed, and a missing second layer or a best practice that hurts no one goes in a separate list of hardening notes.
+- The `reviewer` can now refute a finding someone else raised. It checks only that finding: it re-reads what the finding cites, looks for what stops it, checks that the proposed fix does not block input that works today, and returns the verdict the evidence supports.
+- `supervisor`: before acting on a review, each finding goes to a fresh `reviewer` that tries to prove it wrong, and the supervisor fixes only what comes back `confirmed`. A refuter's stronger claim, or a security finding it lowers or rejects, gets one more fresh check. Rejected findings go to later review rounds so they are not raised again. The idea comes from the verdict model in Cloudflare's [security-audit skill](https://github.com/cloudflare/security-audit-skill), rewritten for any review.
+
 ## 1.7.0 (2026-10-22)
 
 ### Added

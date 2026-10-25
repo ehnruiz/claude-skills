@@ -48,6 +48,15 @@ class LayoutTest(unittest.TestCase):
             self.assertIn(fields.get("model"), {"haiku", "sonnet", "opus"}, path)
             self.assertTrue(fields.get("description"), path)
 
+    def test_supervisor_acts_on_exactly_the_verdicts_the_reviewer_defines(self):
+        reviewer = (ROOT / "agents/reviewer.md").read_text(encoding="utf-8")
+        supervisor = (ROOT / "skills/supervisor/SKILL.md").read_text(encoding="utf-8")
+        defined = re.findall(r"^- \*\*(\w+)\*\*:", reviewer.split("## Verdicts", 1)[1].split("\n## ", 1)[0], re.M)
+        review_step = supervisor.split("6. **Review.**", 1)[1].split("7. **Ship.**", 1)[0]
+        acted_on = re.findall(r"^   - `(\w+)`:", review_step, re.M)
+        self.assertEqual(defined, ["confirmed", "needs_validation", "rejected"])
+        self.assertEqual(acted_on, defined)
+
     def test_relative_links_in_skills_resolve(self):
         for path in (ROOT / "skills").rglob("*.md"):
             self.assertEqual(broken_links(path), [], path)
