@@ -49,13 +49,10 @@ class ClaudeError(RuntimeError):
 
 
 def routable(skills):
-    """The skills Claude can pick by description: one per name, none that run only when typed."""
-    seen, result = set(), []
-    for skill in skills:
-        if not skill.get("manual") and skill["name"] not in seen:
-            seen.add(skill["name"])
-            result.append(skill)
-    return result
+    """The skills Claude can pick by description, leaving out those that run only when typed. Two skills
+    with one name (two plugins can ship the same name) both stay, so neither competitor is hidden; an
+    answer with that name counts as that name."""
+    return [skill for skill in skills if not skill.get("manual")]
 
 
 def system_prompt(skills):

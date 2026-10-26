@@ -82,6 +82,15 @@ class ReplayRoutingTest(unittest.TestCase):
             self.assertIn(f"- {skill['name']}: {skill['description']}", ask.seen[0])
         self.assertNotIn("release", ask.seen[0])
 
+    def test_two_skills_with_one_name_both_reach_claude(self):
+        # Two plugins can ship a skill with the same name; dropping the second would hide a competitor.
+        twin = {"name": "content-plan", "path": "e", "description": "Plan a quarter of newsletter issues."}
+        ask = fake_claude({"plan May's posts": "content-plan"})
+        with contextlib.redirect_stdout(io.StringIO()):
+            replay_routing.replay(SKILLS + [twin], {PAIR: {"hash": "", "requests": [("plan May's posts", "content-plan")]}}, ask)
+        self.assertIn(f"- content-plan: {SKILLS[0]['description']}", ask.seen[0])
+        self.assertIn(f"- content-plan: {twin['description']}", ask.seen[0])
+
     def test_exit_codes(self):
         with tempfile.TemporaryDirectory() as tmp:
             library = pathlib.Path(tmp) / "skills"

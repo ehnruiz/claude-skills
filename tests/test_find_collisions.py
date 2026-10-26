@@ -153,6 +153,8 @@ class FindCollisionsTest(unittest.TestCase):
             {"pairs": [{**entry, "requests": None}]},
             {"pairs": [{**entry, "requests": ["plan the month"]}]},
             {"pairs": [{**entry, "requests": {"plan the month": "x"}}]},
+            # A missing expect would otherwise count as the request for neither skill.
+            {"pairs": [{**entry, "requests": [{"request": "book a flight"}]}]},
             {"pairs": [{**entry, "hash": 123}]},
             [],
         ]
