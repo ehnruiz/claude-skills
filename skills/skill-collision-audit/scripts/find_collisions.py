@@ -159,7 +159,7 @@ def load_reviewed(path):
         requests = []
         for item in items:
             request, expect = (item.get("request"), item.get("expect")) if isinstance(item, dict) else (None, None)
-            if not isinstance(request, str) or not request.strip() or not (expect is None or isinstance(expect, str)):
+            if not isinstance(item, dict) or "expect" not in item or not isinstance(request, str) or not request.strip() or not (expect is None or isinstance(expect, str)):
                 raise ValueError(f"{path}: a request needs text and an expected skill or null: {item!r}")
             requests.append((request, expect))
         reviewed[pair] = {"hash": digest, "requests": requests}
