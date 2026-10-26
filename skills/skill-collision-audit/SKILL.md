@@ -16,8 +16,8 @@ Claude chooses a skill by reading descriptions. Two descriptions that answer the
    python3 scripts/find_collisions.py ~/.claude/skills .claude/skills
    ```
 
-   The path is relative to this skill's folder. `--threshold` (default 0.25) widens or narrows the list; `--json` gives machine-readable output. A one-line description shares few words with anything, so it can score under the threshold and still collide: run a second pass at `--threshold 0.12` and look at the pairs where either description is short. The script also lists **duplicate names**: the same skill installed twice, where only one copy loads. Plugin skills are namespaced (`plugin:skill`), so a duplicate between two plugins usually is not one. Skills marked `disable-model-invocation: true` only run when typed by name, so they are never paired.
-3. **Judge each pair.** A high score is a reason to look, not a verdict. For each pair, read both descriptions in full and write three realistic requests a user would type for either one. For each request, decide which skill should fire.
+   The path is relative to this skill's folder. `--threshold` (default 0.25) widens or narrows the list; `--json` gives machine-readable output. A one-line description shares few words with anything, so it can score under the threshold and still collide: run a second pass at `--threshold 0.12` and look at the pairs where either description is short. The script also lists **duplicate names**: the same skill installed twice, where only one copy loads. Plugin skills are namespaced (`plugin:skill`), so a duplicate between two plugins usually is not one. Skills marked `disable-model-invocation: true` only run when typed by name, so they are never paired. When the library already has a `reviewed-pairs.json` (step 6), pass it with `--reviewed` so pairs judged before are listed but not flagged.
+3. **Judge each pair.** A high score is a reason to look, not a verdict. For each pair, read both descriptions in full and write three realistic requests a user would type for either one, plus one nearby request that neither should take. For each request, decide which skill should fire.
    - **Collision:** at least one request could reasonably fire either skill, and neither description tells Claude which to prefer.
    - **Resolved:** the descriptions already draw the line, typically with a "not for …, use the X skill" clause, or by triggering on different nouns.
    - **Fine:** they share vocabulary but serve different requests.
@@ -27,7 +27,25 @@ Claude chooses a skill by reading descriptions. Two descriptions that answer the
    3. **Merge** two skills that do the same job, keeping the better body.
    4. **Remove** a duplicate or an unused skill.
 5. **Show the user** a table of pairs (verdict, the request that collides, the proposed fix) before changing anything. A skill from a plugin the user does not maintain gets a suggested change to send upstream, not an edit to the installed copy, which an update would overwrite.
-6. **Check the fix.** Run the script again and replay the three requests against the new descriptions. Each one now routes to a single skill.
+6. **Save the requests.** Write each pair judged resolved, and each collision once fixed, to `reviewed-pairs.json` beside the library (for `~/.claude/skills`, `~/.claude/skills/reviewed-pairs.json`). Each entry keeps the requests from step 3 and the skill each should reach, at least one for each skill and `null` for the one neither should take:
+
+   ```json
+   {"pairs": [{"skills": ["content-plan", "social-calendar"], "hash": "",
+     "requests": [{"request": "plan May's posts", "expect": "content-plan"},
+                  {"request": "what should I post?", "expect": "content-plan"},
+                  {"request": "a calendar of posts for June", "expect": "social-calendar"},
+                  {"request": "write the caption for this photo", "expect": null}]}]}
+   ```
+
+   Leave `hash` empty: step 7 prints the value to set. The hash covers both descriptions, so editing either one reopens the pair.
+7. **Check the fix.** Both commands must exit 0:
+
+   ```bash
+   python3 scripts/find_collisions.py --reviewed ~/.claude/skills/reviewed-pairs.json ~/.claude/skills .claude/skills
+   python3 scripts/replay_routing.py --reviewed ~/.claude/skills/reviewed-pairs.json ~/.claude/skills .claude/skills
+   ```
+
+   The first lists a reviewed pair without flagging it, and flags a missing hash, a changed description, or a pair with fewer than three saved requests or none for neither. The second asks `claude -p` where each saved request goes, given every skill's name and description, and fails when one lands on another skill, or when a request for neither lands on either skill of its pair. It makes one model call per request, so run it during the audit and after any description edit, not in CI. A single failure can be chance: replay once more before rewriting a description.
 
 ## Writing descriptions that route cleanly
 

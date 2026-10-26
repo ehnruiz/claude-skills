@@ -1,6 +1,6 @@
 import contextlib
-import hashlib
 import importlib.util
+import json
 import io
 import pathlib
 import tempfile
@@ -28,43 +28,10 @@ for _rel, _text in FIXTURES.items():
     (LIBRARY / _rel).write_text(_text, encoding="utf-8")
 
 
-# Pairs judged with the skill's step 3 and found resolved: each description draws the line.
-# Pointing two descriptions at each other raises their shared-word score, so a resolved pair
-# can sit over the threshold. Each entry keeps a hash of both descriptions, so editing either
-# one reopens the review, and the requests it was judged with, mapped to the skill each should reach.
-REVIEWED = {
-    frozenset({"explain-the-number", "regression-proof"}): {
-        "hash": "f41f0357b23c",
-        "requests": {
-            "did the tests pass?": "regression-proof",
-            "can I say the change improved the Lighthouse score?": "explain-the-number",
-        },
-    },
-}
-
-
-def description_hash(skills, pair):
-    by_name = {s["name"]: s["description"] for s in skills}
-    text = "\n".join(f"{name}\n{by_name[name]}" for name in sorted(pair))
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
-
-
-def stale_reviews(skills, reviewed):
-    """Reviewed pairs whose skills are gone or whose descriptions changed since the review."""
-    names = {s["name"] for s in skills}
-    problems = []
-    for pair, review in reviewed.items():
-        a, b = sorted(pair)
-        if not pair <= names:
-            problems.append(f"{a} <-> {b}: a skill no longer exists; remove the entry")
-            continue
-        current = description_hash(skills, pair)
-        if current != review["hash"]:
-            problems.append(
-                f"{a} <-> {b}: a description changed since the review; judge the pair again "
-                f"with the skill's step 3, then set its hash to {current}"
-            )
-    return problems
+# Pairs judged with the skill's step 3, saved by the audit beside the library it ran on. Each entry
+# keeps a hash of both descriptions, so editing either one reopens the review, and the requests it
+# was judged with, which `replay_routing.py` sends to Claude to check where they land.
+REVIEWED_FILE = ROOT / "skills/reviewed-pairs.json"
 
 
 def run(*args):
@@ -119,40 +86,96 @@ class FindCollisionsTest(unittest.TestCase):
         skills[1]["manual"] = False
         self.assertEqual(len(find_collisions.find_pairs(skills, 0.25)), 1)
 
+    def test_shared_words_with_equal_weight_are_listed_in_order(self):
+        # A set's order changes with the hash seed, so ties are broken by the word itself.
+        text = "zeta theta eta epsilon delta gamma beta alpha"
+        skills = [{"name": "x", "path": "x", "description": text}, {"name": "y", "path": "y", "description": text}]
+        shared = find_collisions.find_pairs(skills, 0.25)[0]["shared"]
+        self.assertEqual(shared, ["alpha", "beta", "delta", "epsilon", "eta", "gamma"])
+
     def test_exit_codes(self):
         self.assertEqual(run(LIBRARY / "a"), 1)
         self.assertEqual(run(LIBRARY / "a" / "invoice-chase"), 0)
         self.assertEqual(run(LIBRARY / "missing"), 2)
 
     def test_every_overlapping_pair_in_this_repository_has_been_reviewed(self):
-        # A new pair fails here until someone judges it, fixes the descriptions or adds it to REVIEWED.
+        # A new pair fails here until someone judges it, fixes the descriptions or adds it to the file.
         skills = find_collisions.load_skills([ROOT / "skills"])
+        reviewed = find_collisions.load_reviewed(REVIEWED_FILE)
         found = {frozenset({p["a"]["name"], p["b"]["name"]}) for p in find_collisions.find_pairs(skills, 0.25)}
-        self.assertEqual(found - set(REVIEWED), set(), "unreviewed overlapping skills; run the skill-collision-audit skill")
+        self.assertEqual(found - set(reviewed), set(), "unreviewed overlapping skills; run the skill-collision-audit skill")
         self.assertEqual(find_collisions.find_duplicate_names(skills), {})
 
-    def test_no_reviewed_pair_has_changed_since_its_review(self):
+    def test_every_review_in_this_repository_is_current_and_complete(self):
         # Deleting the line one description draws lowers the shared-word score, so the pair can drop
         # under the threshold and leave the test above green. The hash catches that edit.
         skills = find_collisions.load_skills([ROOT / "skills"])
-        self.assertEqual(stale_reviews(skills, REVIEWED), [])
-
-    def test_each_reviewed_request_reaches_a_skill_of_its_pair(self):
-        for pair, review in REVIEWED.items():
-            for request, skill in review["requests"].items():
-                self.assertIn(skill, pair, request)
+        reviewed = find_collisions.load_reviewed(REVIEWED_FILE)
+        self.assertEqual(find_collisions.review_problems(skills, reviewed), [])
 
     def test_an_edited_or_missing_description_reopens_a_review(self):
-        skills = [
+        skills = self.two_skills()
+        reviewed = self.review(skills)
+        self.assertEqual(find_collisions.review_problems(skills, reviewed), [])
+        skills[1]["description"] = "Write one post."
+        self.assertIn("description changed", find_collisions.review_problems(skills, reviewed)[0])
+        self.assertIn("no longer exists", find_collisions.review_problems(skills[:1], reviewed)[0])
+        reviewed[frozenset({"x", "y"})]["hash"] = ""
+        self.assertIn("not hashed yet; set its hash to", find_collisions.review_problems(skills, reviewed)[0])
+
+    def test_a_review_needs_three_requests_for_its_pair_and_one_for_neither(self):
+        skills = self.two_skills()
+        cases = {
+            "fewer than three": [("plan the month", "x"), ("write one post", "y"), ("book a flight", None)],
+            "neither skill": [("plan the month", "x"), ("plan next month", "x"), ("write one post", "y")],
+            "no request reaches": [("plan the month", "x"), ("plan next month", "x"), ("plan May", "x"), ("book a flight", None)],
+            "outside the pair": [("plan the month", "x"), ("plan next month", "x"), ("write one post", "y"), ("book a flight", "z"), ("rename a file", None)],
+        }
+        for message, requests in cases.items():
+            with self.subTest(message):
+                problems = find_collisions.review_problems(skills, self.review(skills, requests))
+                self.assertEqual(len(problems), 1, problems)
+                self.assertIn(message, problems[0])
+
+    def test_the_reviewed_file_round_trips_and_rejects_a_bad_entry(self):
+        skills = self.two_skills()
+        path = pathlib.Path(_TMP.name) / "reviewed-pairs.json"
+        entry = {"skills": ["y", "x"], "hash": "abc", "requests": [{"request": "plan the month", "expect": "x"}, {"request": "book a flight", "expect": None}]}
+        path.write_text(json.dumps({"pairs": [entry]}), encoding="utf-8")
+        reviewed = find_collisions.load_reviewed(path)
+        self.assertEqual(reviewed[frozenset({"x", "y"})]["requests"], [("plan the month", "x"), ("book a flight", None)])
+        for bad in ({"pairs": [{**entry, "skills": ["x"]}]}, {"pairs": [entry, entry]}, {"pairs": [{**entry, "requests": [{"request": "", "expect": "x"}]}]}, []):
+            with self.subTest(bad=bad):
+                path.write_text(json.dumps(bad), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    find_collisions.load_reviewed(path)
+        self.assertEqual(find_collisions.load_reviewed(pathlib.Path(_TMP.name) / "absent.json"), {})
+
+    def test_a_current_review_clears_its_pair_and_a_stale_one_flags_it(self):
+        library = pathlib.Path(_TMP.name) / "cli"
+        for rel in ("a/content-plan/SKILL.md", "a/social-calendar/SKILL.md"):
+            (library / rel).parent.mkdir(parents=True, exist_ok=True)
+            (library / rel).write_text(FIXTURES[rel], encoding="utf-8")
+        skills = find_collisions.load_skills([library])
+        pair = ["content-plan", "social-calendar"]
+        requests = [{"request": "plan May's posts", "expect": "content-plan"}, {"request": "what should I post?", "expect": "content-plan"},
+                    {"request": "a calendar of posts for June", "expect": "social-calendar"}, {"request": "chase an unpaid invoice", "expect": None}]
+        reviewed_file = library / "reviewed-pairs.json"
+        for digest, code in ((find_collisions.description_hash(skills, frozenset(pair)), 0), ("000000000000", 1)):
+            with self.subTest(code=code):
+                reviewed_file.write_text(json.dumps({"pairs": [{"skills": pair, "hash": digest, "requests": requests}]}), encoding="utf-8")
+                self.assertEqual(run("--reviewed", reviewed_file, library), code)
+
+    def two_skills(self):
+        return [
             {"name": "x", "path": "x", "description": "Plan this month's posts. For a single post, use y."},
             {"name": "y", "path": "y", "description": "Write one post. For a month of posts, use x."},
         ]
+
+    def review(self, skills, requests=(("plan the month", "x"), ("plan next month", "x"), ("write one post", "y"), ("book a flight", None))):
         pair = frozenset({"x", "y"})
-        reviewed = {pair: {"hash": description_hash(skills, pair), "requests": {}}}
-        self.assertEqual(stale_reviews(skills, reviewed), [])
-        skills[1]["description"] = "Write one post."
-        self.assertIn("description changed", stale_reviews(skills, reviewed)[0])
-        self.assertIn("no longer exists", stale_reviews(skills[:1], reviewed)[0])
+        return {pair: {"hash": find_collisions.description_hash(skills, pair), "requests": list(requests)}}
+
 
 if __name__ == "__main__":
     unittest.main()
