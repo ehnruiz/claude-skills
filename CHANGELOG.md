@@ -10,8 +10,8 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ### Added
 
-- `skill-collision-audit` saves the requests each pair was judged on to `reviewed-pairs.json` beside the library: at least three that a skill of the pair should reach, covering both skills, and one that neither should take. A new script, `replay_routing.py`, sends each saved request to `claude -p` with every skill's name and description and exits 1 when one lands on a different skill, or when a request for neither lands on either skill of its pair. It runs during the audit and after a description edit; CI does not call a model. The idea came from a reader's comment on the LinkedIn post about the audit.
-- `find_collisions.py --reviewed FILE` lists a saved pair without flagging it while both descriptions match its hash, and flags a changed description, a missing skill, a missing hash or an incomplete set of requests.
+- `skill-collision-audit` saves the requests each pair was judged on to `reviewed-pairs.json` beside the library: at least three that a skill of the pair should reach, covering both skills, and one that neither should take. A new script, `replay_routing.py`, sends each saved request to `claude -p` in safe mode with every skill's name and description, and exits 1 when one lands on a different skill, or when a request for neither lands on either skill of its pair. It approximates Claude Code's routing: it checks that the descriptions alone separate the requests. It runs during the audit and after a description edit; CI does not call a model. The idea came from a reader's comment on the LinkedIn post about the audit.
+- `find_collisions.py --reviewed FILE` lists a saved pair without flagging it while both descriptions match its hash, and flags a changed description, a missing skill, a missing hash or an incomplete set of requests. The first line of the text output now reads `N skills, P overlapping pairs, R reviewed, D duplicate names`, where P counts only the pairs not yet reviewed, and `--json` adds `reviewed` to each pair and a `review_problems` list.
 
 ### Changed
 

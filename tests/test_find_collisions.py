@@ -144,11 +144,25 @@ class FindCollisionsTest(unittest.TestCase):
         path.write_text(json.dumps({"pairs": [entry]}), encoding="utf-8")
         reviewed = find_collisions.load_reviewed(path)
         self.assertEqual(reviewed[frozenset({"x", "y"})]["requests"], [("plan the month", "x"), ("book a flight", None)])
-        for bad in ({"pairs": [{**entry, "skills": ["x"]}]}, {"pairs": [entry, entry]}, {"pairs": [{**entry, "requests": [{"request": "", "expect": "x"}]}]}, []):
+        bad_files = [
+            {"pairs": [{**entry, "skills": ["x"]}]},
+            {"pairs": [{**entry, "skills": [["x"], "y"]}]},
+            {"pairs": [{**entry, "skills": ["x", "x"]}]},
+            {"pairs": [entry, entry]},
+            {"pairs": [{**entry, "requests": [{"request": "", "expect": "x"}]}]},
+            {"pairs": [{**entry, "requests": None}]},
+            {"pairs": [{**entry, "requests": ["plan the month"]}]},
+            {"pairs": [{**entry, "requests": {"plan the month": "x"}}]},
+            {"pairs": [{**entry, "hash": 123}]},
+            [],
+        ]
+        for bad in bad_files:
             with self.subTest(bad=bad):
                 path.write_text(json.dumps(bad), encoding="utf-8")
                 with self.assertRaises(ValueError):
                     find_collisions.load_reviewed(path)
+        with self.assertRaises(ValueError):
+            find_collisions.load_reviewed(pathlib.Path(_TMP.name))
         self.assertEqual(find_collisions.load_reviewed(pathlib.Path(_TMP.name) / "absent.json"), {})
 
     def test_a_current_review_clears_its_pair_and_a_stale_one_flags_it(self):
@@ -165,6 +179,16 @@ class FindCollisionsTest(unittest.TestCase):
             with self.subTest(code=code):
                 reviewed_file.write_text(json.dumps({"pairs": [{"skills": pair, "hash": digest, "requests": requests}]}), encoding="utf-8")
                 self.assertEqual(run("--reviewed", reviewed_file, library), code)
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    find_collisions.main(["--json", "--reviewed", str(reviewed_file), str(library)])
+                report = json.loads(out.getvalue())
+                self.assertEqual([p["reviewed"] for p in report["pairs"]], [True])
+                self.assertEqual(len(report["review_problems"]), code)
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            find_collisions.main(["--reviewed", str(reviewed_file), str(library)])
+        self.assertIn("0 overlapping pairs, 1 reviewed", out.getvalue())
+        self.assertIn("social-calendar  (reviewed)", out.getvalue())
+        self.assertEqual(run("--reviewed", library, library), 2)
 
     def two_skills(self):
         return [

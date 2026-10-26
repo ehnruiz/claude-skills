@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Ask Claude where each saved request goes, and fail when one lands somewhere else.
+"""Ask Claude which skill each saved request needs, and fail when one lands somewhere else.
 
 Usage: replay_routing.py --reviewed FILE [--model MODEL] ROOT [ROOT ...]
 
 FILE is the reviewed-pairs.json the audit writes. For each saved request, Claude
-sees every skill in the ROOTs that can fire on its own (name and description, as
-Claude Code lists them) and names the one it would use, or "none". A request
-saved with a skill must reach that skill. A request saved with null must reach
-neither skill of its pair: "none" or a third skill both pass.
+sees every skill in the ROOTs that can fire on its own, as a list of names and
+descriptions, and names the one it would use, or "none". A request saved with a
+skill must reach that skill. A request saved with null must reach neither skill
+of its pair: "none" or a third skill both pass.
 
-Each request is one `claude -p` call with no tools, no skills or slash
-commands, and no saved session, run from a temporary folder so no project's
-CLAUDE.md is read. The default model is the one `claude` uses; --model picks
-another. The answer can vary between runs, so a request that fails once is
+This approximates Claude Code's routing rather than reproducing it: a real
+session has the full system prompt and may answer without any skill, while here
+Claude must pick one or say none. It answers whether the descriptions alone
+separate the requests.
+
+Each request is one `claude -p` call in safe mode (no CLAUDE.md, skills,
+plugins, hooks or MCP servers), with no tools and no saved session, run from an
+empty temporary folder. The request goes on stdin, so one that starts with "-"
+is not read as a flag. The default model is the one `claude` uses; --model
+picks another. The answer can vary between runs, so a request that fails once is
 worth replaying before rewriting a description.
 
 Exits 0 when every request lands where it was saved, 1 when one does not,
@@ -59,29 +65,31 @@ def system_prompt(skills):
 def read_answer(raw, skills):
     """The skill name or "none" in Claude's reply, or None when it names neither."""
     first = raw.strip().splitlines()[0] if raw.strip() else ""
-    word = re.sub(r"^[`'\"/\s]+|[`'\".\s]+$", "", first).lower()
+    word = re.sub(r"^[`'\"*/\s]+|[`'\"*.\s]+$", "", first).lower()
     names = {s["name"].lower(): s["name"] for s in skills}
     if word == "none":
         return "none"
     return names.get(word)
 
 
-def claude_command(system, request, model=None):
-    command = ["claude", "-p", request, "--system-prompt", system, "--tools", "", "--disable-slash-commands",
-               "--no-session-persistence", "--output-format", "text"]
+def claude_command(system, model=None):
+    """The `claude` call for one request, which goes on stdin. Safe mode and a strict empty MCP config keep
+    the user's CLAUDE.md, plugins, hooks and MCP servers out of the answer."""
+    command = ["claude", "-p", "--safe-mode", "--strict-mcp-config", "--system-prompt", system, "--tools", "",
+               "--disable-slash-commands", "--no-session-persistence", "--output-format", "text"]
     if model:
         command += ["--model", model]
     return command
 
 
-def ask_claude(model=None):
+def ask_claude(model=None, run=subprocess.run):
     """An `ask(system, request)` that runs one `claude -p` call from an empty temporary folder."""
 
     def ask(system, request):
         with tempfile.TemporaryDirectory() as folder:
             try:
-                done = subprocess.run(claude_command(system, request, model), cwd=folder, capture_output=True,
-                                      text=True, timeout=300)
+                done = run(claude_command(system, model), input=request, cwd=folder, capture_output=True,
+                           text=True, timeout=300)
             except (OSError, subprocess.TimeoutExpired) as error:
                 raise ClaudeError(f"could not run claude: {error}") from error
         if done.returncode != 0:

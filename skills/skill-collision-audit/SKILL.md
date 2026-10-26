@@ -27,7 +27,7 @@ Claude chooses a skill by reading descriptions. Two descriptions that answer the
    3. **Merge** two skills that do the same job, keeping the better body.
    4. **Remove** a duplicate or an unused skill.
 5. **Show the user** a table of pairs (verdict, the request that collides, the proposed fix) before changing anything. A skill from a plugin the user does not maintain gets a suggested change to send upstream, not an edit to the installed copy, which an update would overwrite.
-6. **Save the requests.** Write each pair judged resolved, and each collision once fixed, to `reviewed-pairs.json` beside the library (for `~/.claude/skills`, `~/.claude/skills/reviewed-pairs.json`). Each entry keeps the requests from step 3 and the skill each should reach, at least one for each skill and `null` for the one neither should take:
+6. **Save the requests.** Write every pair you judged, fine and resolved ones as well as each collision once fixed, to `reviewed-pairs.json` beside the library (for `~/.claude/skills`, `~/.claude/skills/reviewed-pairs.json`). Each entry keeps the requests from step 3 and the skill each should reach, at least one for each skill and `null` for the one neither should take:
 
    ```json
    {"pairs": [{"skills": ["content-plan", "social-calendar"], "hash": "",
@@ -45,7 +45,7 @@ Claude chooses a skill by reading descriptions. Two descriptions that answer the
    python3 scripts/replay_routing.py --reviewed ~/.claude/skills/reviewed-pairs.json ~/.claude/skills .claude/skills
    ```
 
-   The first lists a reviewed pair without flagging it, and flags a missing hash, a changed description, or a pair with fewer than three saved requests or none for neither. The second asks `claude -p` where each saved request goes, given every skill's name and description, and fails when one lands on another skill, or when a request for neither lands on either skill of its pair. It makes one model call per request, so run it during the audit and after any description edit, not in CI. A single failure can be chance: replay once more before rewriting a description.
+   The first lists a reviewed pair without flagging it, and flags a missing hash, a changed description, or a pair with fewer than three saved requests or none for neither. The second asks `claude -p`, with the user's own setup switched off, which skill each saved request needs given only the skills' names and descriptions. It approximates how Claude Code routes, so it shows whether the descriptions alone separate the requests. It fails when one lands on another skill, or when a request for neither lands on either skill of its pair. It makes one model call per request, so run it during the audit and after any description edit, not in CI. A single failure can be chance: replay once more before rewriting a description.
 
 ## Writing descriptions that route cleanly
 

@@ -128,7 +128,7 @@ $ python3 find_collisions.py ~/.claude/skills .claude/skills
 
 A high score is a reason to look, not a verdict: that pair already says in both descriptions which browser each one is for. The skill has Claude test each pair with realistic requests and fix only the real collisions.
 
-The audit saves the requests each pair was judged on to `reviewed-pairs.json`, with the skill each should reach and one that neither should take. With `--reviewed`, the script lists a saved pair without flagging it until either description changes. `replay_routing.py` sends each saved request to `claude -p` with every skill's name and description, and exits 1 when one lands on a different skill. This repository's own pair is saved in [`skills/reviewed-pairs.json`](skills/reviewed-pairs.json):
+The audit saves the requests each pair was judged on to `reviewed-pairs.json`, with the skill each should reach and one that neither should take. With `--reviewed`, the script lists a saved pair without flagging it until either description changes. `replay_routing.py` sends each saved request to `claude -p`, with the user's own setup switched off and every skill's name and description, and exits 1 when one lands on a different skill. It approximates how Claude Code routes, so it shows whether the descriptions alone separate the requests. This repository's own pair is saved in [`skills/reviewed-pairs.json`](skills/reviewed-pairs.json):
 
 ```
 $ python3 skills/skill-collision-audit/scripts/replay_routing.py --reviewed skills/reviewed-pairs.json skills

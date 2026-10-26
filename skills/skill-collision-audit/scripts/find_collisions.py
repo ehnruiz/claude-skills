@@ -132,29 +132,37 @@ def description_hash(skills, pair):
 def load_reviewed(path):
     """Read reviewed-pairs.json into {frozenset(pair): {"hash", "requests": [(request, skill or None)]}}.
 
-    A missing file means nothing has been reviewed yet. A malformed one raises ValueError.
+    A missing file means nothing has been reviewed yet. A malformed one, or a folder, raises ValueError.
     """
     path = pathlib.Path(path).expanduser()
     if not path.exists():
         return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        raise ValueError(f"{path}: cannot read: {error}") from error
     if not isinstance(data, dict) or not isinstance(data.get("pairs"), list):
         raise ValueError(f"{path}: expected an object with a \"pairs\" list")
     reviewed = {}
     for entry in data["pairs"]:
         names = entry.get("skills") if isinstance(entry, dict) else None
-        if not isinstance(names, list) or len(set(names)) != 2 or not all(isinstance(n, str) for n in names):
+        if not isinstance(names, list) or len(names) != 2 or not all(isinstance(n, str) for n in names) or names[0] == names[1]:
             raise ValueError(f"{path}: each pair names two different skills: {entry!r}")
         pair = frozenset(names)
         if pair in reviewed:
             raise ValueError(f"{path}: {' <-> '.join(sorted(pair))} is listed twice")
+        digest, items = entry.get("hash", ""), entry.get("requests", [])
+        if not isinstance(digest, str):
+            raise ValueError(f"{path}: {' <-> '.join(sorted(pair))}: hash is a string, empty until set")
+        if not isinstance(items, list):
+            raise ValueError(f"{path}: {' <-> '.join(sorted(pair))}: requests is a list of {{\"request\", \"expect\"}}")
         requests = []
-        for item in entry.get("requests", []):
-            request, expect = item.get("request"), item.get("expect")
+        for item in items:
+            request, expect = (item.get("request"), item.get("expect")) if isinstance(item, dict) else (None, None)
             if not isinstance(request, str) or not request.strip() or not (expect is None or isinstance(expect, str)):
                 raise ValueError(f"{path}: a request needs text and an expected skill or null: {item!r}")
             requests.append((request, expect))
-        reviewed[pair] = {"hash": entry.get("hash", ""), "requests": requests}
+        reviewed[pair] = {"hash": digest, "requests": requests}
     return reviewed
 
 

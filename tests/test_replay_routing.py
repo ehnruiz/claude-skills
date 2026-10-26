@@ -2,7 +2,9 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -61,7 +63,7 @@ class ReplayRoutingTest(unittest.TestCase):
                 self.assertEqual(failures == [], ok, failures)
 
     def test_an_answer_is_read_the_way_people_write_a_skill_name(self):
-        for raw in ("`content-plan`", "/content-plan", "Content-Plan.", "content-plan\nIt plans the month."):
+        for raw in ("`content-plan`", "/content-plan", "Content-Plan.", "**content-plan**", "content-plan\nIt plans the month."):
             with self.subTest(raw=raw):
                 self.assertEqual(replay_routing.read_answer(raw, SKILLS), "content-plan")
         self.assertEqual(replay_routing.read_answer("None.", SKILLS), "none")
@@ -74,7 +76,8 @@ class ReplayRoutingTest(unittest.TestCase):
     def test_claude_sees_every_skill_that_can_fire_and_none_typed_only_by_name(self):
         ask = fake_claude({"plan May's posts": "content-plan"})
         manual = {"name": "release", "path": "d", "description": "Cut a release.", "manual": True}
-        replay_routing.replay(SKILLS + [manual], {PAIR: {"hash": "", "requests": [("plan May's posts", "content-plan")]}}, ask)
+        with contextlib.redirect_stdout(io.StringIO()):
+            replay_routing.replay(SKILLS + [manual], {PAIR: {"hash": "", "requests": [("plan May's posts", "content-plan")]}}, ask)
         for skill in SKILLS:
             self.assertIn(f"- {skill['name']}: {skill['description']}", ask.seen[0])
         self.assertNotIn("release", ask.seen[0])
@@ -93,14 +96,19 @@ class ReplayRoutingTest(unittest.TestCase):
             right = {"plan May's posts": "content-plan", "write a post about the launch": "post-writer", "book a flight to Paris": "none"}
             wrong = dict(right, **{"plan May's posts": "post-writer"})
 
-            def main(*args, answers=right):
+            def main(*args, answers=right, ask=None):
                 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    return replay_routing.main([str(a) for a in args], ask=fake_claude(answers))
+                    return replay_routing.main([str(a) for a in args], ask=ask or fake_claude(answers))
+
+            def broken(system, request):
+                raise replay_routing.ClaudeError("claude exited 1: not logged in")
 
             self.assertEqual(main("--reviewed", reviewed, library), 0)
             self.assertEqual(main("--reviewed", reviewed, library, answers=wrong), 1)
             self.assertEqual(main("--reviewed", library / "absent.json", library), 2)
             self.assertEqual(main("--reviewed", reviewed, library / "missing"), 2)
+            self.assertEqual(main("--reviewed", reviewed, library, ask=broken), 2)
+            self.assertEqual(main("--reviewed", library, library), 2)
             entry["requests"][0]["expect"] = "gone-skill"
             reviewed.write_text(json.dumps({"pairs": [entry]}), encoding="utf-8")
             self.assertEqual(main("--reviewed", reviewed, library), 2)
@@ -112,14 +120,43 @@ class ReplayRoutingTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(replay_routing.ClaudeError):
             replay_routing.replay(SKILLS, {PAIR: {"hash": "", "requests": REQUESTS}}, broken)
 
-    def test_the_claude_command_runs_without_tools_skills_or_a_saved_session(self):
-        command = replay_routing.claude_command("system text", "plan May's posts", model="haiku")
-        self.assertEqual(command[:3], ["claude", "-p", "plan May's posts"])
-        for flag in ("--system-prompt", "--disable-slash-commands", "--no-session-persistence"):
+    def test_the_claude_command_runs_without_the_users_setup_tools_or_a_saved_session(self):
+        command = replay_routing.claude_command("system text", model="haiku")
+        self.assertEqual(command[:2], ["claude", "-p"])
+        # Without safe mode and a strict MCP config, the user's CLAUDE.md and MCP instructions reach the call.
+        for flag in ("--safe-mode", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"):
             self.assertIn(flag, command)
+        self.assertEqual(command[command.index("--system-prompt") + 1], "system text")
         self.assertEqual(command[command.index("--tools") + 1], "")
         self.assertEqual(command[command.index("--model") + 1], "haiku")
-        self.assertNotIn("--model", replay_routing.claude_command("s", "r"))
+        self.assertNotIn("--model", replay_routing.claude_command("s"))
+
+    def test_ask_claude_sends_the_request_on_stdin_from_an_empty_folder(self):
+        calls = []
+
+        def run(command, **options):
+            calls.append((command, options, os.listdir(options["cwd"])))
+            return subprocess.CompletedProcess(command, 0, stdout="content-plan\n", stderr="")
+
+        answer = replay_routing.ask_claude(run=run)("system text", "--plan May's posts")
+        self.assertEqual(answer, "content-plan\n")
+        command, options, files = calls[0]
+        self.assertEqual(options["input"], "--plan May's posts")
+        self.assertNotIn("--plan May's posts", command)
+        self.assertEqual(files, [])
+        self.assertFalse(pathlib.Path(options["cwd"]).exists())
+        self.assertIn("timeout", options)
+
+    def test_ask_claude_raises_on_a_failed_or_missing_claude(self):
+        failed = lambda command, **options: subprocess.CompletedProcess(command, 1, stdout="", stderr="not logged in")
+        with self.assertRaisesRegex(replay_routing.ClaudeError, "claude exited 1: not logged in"):
+            replay_routing.ask_claude(run=failed)("s", "r")
+
+        def missing(command, **options):
+            raise FileNotFoundError("claude")
+
+        with self.assertRaisesRegex(replay_routing.ClaudeError, "could not run claude"):
+            replay_routing.ask_claude(run=missing)("s", "r")
 
 
 if __name__ == "__main__":
