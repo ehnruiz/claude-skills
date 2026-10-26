@@ -27,7 +27,7 @@ Claude chooses a skill by reading descriptions. Two descriptions that answer the
    3. **Merge** two skills that do the same job, keeping the better body.
    4. **Remove** a duplicate or an unused skill.
 5. **Show the user** a table of pairs (verdict, the request that collides, the proposed fix) before changing anything. A skill from a plugin the user does not maintain gets a suggested change to send upstream, not an edit to the installed copy, which an update would overwrite.
-6. **Save the requests.** Write every pair you judged, fine and resolved ones as well as each collision once fixed, to `reviewed-pairs.json` beside the library (for `~/.claude/skills`, `~/.claude/skills/reviewed-pairs.json`). Each entry keeps the requests from step 3 and the skill each should reach, at least one for each skill and `null` for the one neither should take:
+6. **Save the requests.** Write every pair you judged whose two skills still exist, fine and resolved ones as well as each collision once fixed, to `reviewed-pairs.json` beside the library (for `~/.claude/skills`, `~/.claude/skills/reviewed-pairs.json`). Remove existing entries involving skills merged away or removed in step 4 instead of saving those old pairs. Each entry keeps the requests from step 3 and the skill each should reach, at least one for each skill and `null` for the one neither should take:
 
    ```json
    {"pairs": [{"skills": ["content-plan", "social-calendar"], "hash": "",
