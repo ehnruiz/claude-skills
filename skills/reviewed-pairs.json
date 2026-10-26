@@ -1,0 +1,15 @@
+{
+  "pairs": [
+    {
+      "skills": ["explain-the-number", "regression-proof"],
+      "hash": "f41f0357b23c",
+      "requests": [
+        { "request": "did the tests pass?", "expect": "regression-proof" },
+        { "request": "I fixed the false positive. Does my new test prove the fix?", "expect": "regression-proof" },
+        { "request": "can I say the change improved the Lighthouse score?", "expect": "explain-the-number" },
+        { "request": "the eval score went from 48 to 52 after my prompt change. Can I credit the prompt?", "expect": "explain-the-number" },
+        { "request": "write a commit message for the staged changes", "expect": null }
+      ]
+    }
+  ]
+}
