@@ -168,6 +168,9 @@ Each subagent's model is set in its file. The `supervisor` skill sends work to t
 | [`stop-check.mjs`](hooks/README.md) | Stop | Opt-in. Runs eslint and the type check on the edited files before a response ends. |
 | [`supervisor-reminder.mjs`](hooks/README.md) | UserPromptSubmit | Opt-in. On the first plain prompt of a session, reminds the model to route a multi-step task through `supervisor`. |
 | [`cloud-browsers.mjs`](hooks/README.md) | SessionStart | Opt-in. In a Claude Code cloud session, installs the Chromium builds the project's Playwright expects, from a host the cloud network allows. |
+| [`commit_identity.py`](hooks/README.md) | PreToolUse | Opt-in. Denies a commit whose author or committer is not you, or is an AI identity. |
+| [`prose_lint.py`](hooks/README.md) | PreToolUse, Stop | Opt-in. Asks before publishing text with curly quotes, em dashes, British spelling or AI attribution, and sends back a final message that has them or points to a temporary path. |
+| [`pr_guard.py`](hooks/README.md) | Stop | Opt-in. Stops a response that opened a pull request without the PR monitor, or that says review threads are resolved while GitHub lists open ones. |
 
 The plugin registers `handoff_notice.py` and `pre_compact.py` through [`hooks/hooks.json`](hooks/hooks.json). The opt-in hooks are not registered: [`hooks/README.md`](hooks/README.md) has the settings snippet for them. With a copy install, add the two Python hooks to `~/.claude/settings.json`:
 

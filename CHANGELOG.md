@@ -6,6 +6,18 @@ Versions before 1.5.0 were not tagged. Their entries below are taken from the co
 
 ## Unreleased
 
+## 1.11.0 (2026-11-17)
+
+### Added
+
+Three opt-in hooks, each built from a correction that kept coming back after it had been written down as a rule:
+
+- `commit_identity.py`: a PreToolUse hook that denies a command creating commits when the author or committer git would use is not the expected person (`COMMIT_IDENTITY_NAME` and `COMMIT_IDENTITY_EMAIL`, else the global git config) or looks like an AI identity.
+- `prose_lint.py`: asks before a commit, tag, release or GitHub post with curly quotes, em dashes, British spelling or AI attribution, and at Stop sends back a final message that has them or points to a temporary path the user cannot open.
+- `pr_guard.py`: at Stop, blocks a response that opened a pull request without the desktop app's PR monitor, or that claims review threads are resolved while GitHub still lists open ones. It counts `gh pr create` only when it runs as a command, so the words inside a quoted string or a test fixture do not count.
+
+None is registered in `hooks.json`; `hooks/README.md` has the settings entries.
+
 ## 1.10.0 (2026-10-26)
 
 ### Added
