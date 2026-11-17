@@ -1,6 +1,6 @@
 # Session hooks
 
-Eight hooks for Claude Code sessions. They protect configuration files, guard against committing secrets, block git commands that publish or destroy work, keep new documents out of the repository root, check edited code with eslint and the type checker before a response ends, remind a session to route multi-step work through the `supervisor` skill, and install Playwright's Chromium in a cloud session. `stop-check` needs a JavaScript or TypeScript project and `cloud-browsers` a Playwright one; the others work in any git repository. They are plain ES modules with no dependencies and need Node 20 or newer.
+Eleven hooks for Claude Code sessions. They protect configuration files, guard against committing secrets, block git commands that publish or destroy work, keep new documents out of the repository root, check edited code with eslint and the type checker before a response ends, remind a session to route multi-step work through the `supervisor` skill, and install Playwright's Chromium in a cloud session. Three more check the agent's own claims and output: the identity on its commits, the prose it publishes, and whether a pull request it opened is being watched. `stop-check` needs a JavaScript or TypeScript project and `cloud-browsers` a Playwright one; the others work in any git repository. The `.mjs` hooks are plain ES modules with no dependencies and need Node 20 or newer. The `.py` hooks need Python 3.9 or newer, and `pr_guard.py` uses the `gh` CLI.
 
 They are opt-in per project. The plugin does not register them in `hooks.json`; you add them to your own settings (see "Turning them on"). The two hooks the plugin does register, `handoff_notice.py` and `pre_compact.py`, are described in the top-level README.
 
@@ -30,6 +30,9 @@ A hook reads an event from stdin as JSON, answers on stdout with a decision, and
 | `stop-check.mjs` | Stop | The end of a response, until the files edited in it pass eslint and the type check |
 | `supervisor-reminder.mjs` | UserPromptSubmit | Nothing. It adds one line to the context on a session's first plain prompt |
 | `cloud-browsers.mjs` | SessionStart, async | Nothing. In a cloud session it installs the Chromium builds the project's Playwright expects |
+| `commit_identity.py` | PreToolUse on Bash | A commit, merge, cherry-pick, revert, rebase or `am` whose author or committer is not the expected person, or looks like an AI identity |
+| `prose_lint.py` | PreToolUse on Bash, and Stop | Asks before a commit, tag, release or GitHub post with curly quotes, em dashes, British spelling or AI attribution; blocks a final message with those or with a temporary path the user cannot open |
+| `pr_guard.py` | Stop | The end of a response that opened a pull request without the desktop app's PR monitor, or that says review threads are resolved while GitHub lists open ones |
 
 `lib.mjs` and `shell.mjs` hold the helpers the others share. They are not hooks.
 
@@ -138,6 +141,18 @@ It runs only on Linux x64, needs `curl` and `unzip`, and keeps everything inside
 
 `CLOUD_BROWSERS_CFT_BASE` points it at another Chrome for Testing mirror; the tests use it to serve zips from a local folder.
 
+## commit_identity, prose_lint and pr_guard
+
+These three turn corrections that kept coming back into checks. Each was a rule in prose first (an instruction file, a memory note) and still had to be repeated across sessions; a hook does not depend on the agent remembering it.
+
+`commit_identity.py` works out the author and committer git would use for a command that creates commits, including `-c`, `GIT_AUTHOR_*` and `GIT_COMMITTER_*` overrides and `--author` written in the command, and denies the call before the commit exists when either differs from the expected identity or looks like an AI one. The expected identity is `COMMIT_IDENTITY_NAME` and `COMMIT_IDENTITY_EMAIL`, else the global git config; with neither (a fresh cloud session) it denies and says how to set one.
+
+`prose_lint.py` scans text that leaves the machine for curly quotes, em dashes, a list of British spellings and AI attribution lines. On PreToolUse it reads the commands that commit, tag or post to GitHub (`git commit`, `git tag`, `gh pr create|edit|comment|review`, `gh issue create|comment`, `gh release create`) and asks rather than denies, because a quoted reviewer comment may hold curly quotes on purpose. On Stop it reads the last assistant message and blocks the stop until it is fixed; it also flags a `/tmp/claude-...` path, which the user cannot open from the desktop app. It cannot tell a word the agent wrote from one it is quoting, so a final message that quotes a flagged example is sent back too.
+
+`pr_guard.py` reads the session transcript at Stop. When a Bash call ran `gh pr create` (as a command, not as words inside a quoted string) and its output holds a pull request URL, and the transcript shows the desktop app's PR tools, it blocks until `mcp__ccd_pr__set_monitor` has been called for that URL with `auto_fix` true. When the final message claims threads are resolved or addressed, it asks GitHub for the bound pull request's review threads and blocks while any are open. A CLI session, which has no monitor, gets only the thread check. A failed `gh` call allows.
+
+All three allow on a malformed or empty event, and the two Stop hooks only add context when the stop hook is already active, so a finding the model cannot fix does not loop.
+
 ## Environment variables
 
 | Variable | Hook | Effect |
@@ -148,6 +163,8 @@ It runs only on Linux x64, needs `curl` and `unzip`, and keeps everything inside
 | `CLAUDE_HOOK_MAX_BYTES` | commit-secrets | Cap on scanned text in bytes, default 4 MB |
 | `CLAUDE_HOOK_STOP_BUDGET_MS` | stop-check | Time budget for all tools, default 100000 |
 | `CLOUD_BROWSERS_CFT_BASE` | cloud-browsers | Chrome for Testing mirror, default `https://storage.googleapis.com/chrome-for-testing-public` |
+| `COMMIT_IDENTITY_NAME`, `COMMIT_IDENTITY_EMAIL` | commit_identity | The expected identity, default the global git config |
+| `PR_GUARD_GH` | pr_guard | Path of the `gh` binary, default `gh` on `PATH` |
 
 ## Turning them on
 
@@ -181,6 +198,14 @@ Add the entries you want to `.claude/settings.local.json` (one project, git-igno
           { "type": "command", "command": "node /path/to/claude-skills/hooks/loose-files.mjs", "timeout": 10 }
         ]
       }
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python3 /path/to/claude-skills/hooks/commit_identity.py", "timeout": 15 },
+          { "type": "command", "command": "python3 /path/to/claude-skills/hooks/prose_lint.py", "timeout": 10 }
+        ]
+      }
     ],
     "PostToolUse": [
       {
@@ -193,7 +218,9 @@ Add the entries you want to `.claude/settings.local.json` (one project, git-igno
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node /path/to/claude-skills/hooks/stop-check.mjs", "timeout": 120 }
+          { "type": "command", "command": "node /path/to/claude-skills/hooks/stop-check.mjs", "timeout": 120 },
+          { "type": "command", "command": "python3 /path/to/claude-skills/hooks/prose_lint.py", "timeout": 10 },
+          { "type": "command", "command": "python3 /path/to/claude-skills/hooks/pr_guard.py", "timeout": 30 }
         ]
       }
     ],
